@@ -9,6 +9,9 @@ from django.core import serializers
 from django.db import connections
 from django.db.models import signals
 
+from dddp.msg import obj_change_as_msg
+
+
 class DjangoDDPConfig(AppConfig):
     name = 'dddp'
     verbose_name = 'Django DDP'
@@ -38,28 +41,8 @@ class DjangoDDPConfig(AppConfig):
         )
 
     def send_notify(self, model, obj, msg, using):
-        data = self.serializer.serialize([obj])[0]
-        name = data['model']
-        print(name)
-        #name = '%s.%s' % (
-        #    model._meta.app_label,
-        #    model._meta.object_name,
-        #)
-
-        # always use UUID as ID
-        if isinstance(data['pk'], int):
-            #data['pk'] = uuid.uuid3(uuid.NAMESPACE_URL, '%d' % data['pk']).hex
-            data['pk'] = '%d' % data['pk']
-
-        payload = {
-            'msg': msg,
-            'collection': name,
-            'id': data['pk'],
-        }
-        if msg != 'removed':
-            payload['fields'] = data['fields']
+        name, payload = obj_change_as_msg(obj, msg)
         cursor = connections[using].cursor()
-        print(name)
         cursor.execute(
             'NOTIFY "%s", %%s' % name,
             [
