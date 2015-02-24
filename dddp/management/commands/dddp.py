@@ -10,6 +10,7 @@ import socket
 
 from django.core.management.base import BaseCommand
 from django.db import connection, close_old_connections
+from django.utils.module_loading import import_string
 import ejson
 import gevent
 import gevent.monkey
@@ -69,16 +70,6 @@ def ddpp_sockjs_info(environ, start_response):
     ]))
 
 
-from meerqat import wsgi
-resource = geventwebsocket.Resource({
-    r'/websocket': DDPWebSocketApplication,
-    r'^/sockjs/\d+/\w+/websocket$': DDPWebSocketApplication,
-    r'^/sockjs/\d+/\w+/xhr$': ddpp_sockjs_xhr,
-    r'^/sockjs/info$': ddpp_sockjs_info,
-    r'^/(?!(websocket|sockjs)/)': wsgi.application,
-})
-
-
 class Command(BaseCommand):
 
     """Command to run DDP web service."""
@@ -105,9 +96,29 @@ class Command(BaseCommand):
         gevent.monkey.patch_all()
         psycogreen.gevent.patch_psycopg()
 
+        debug = int(options['verbosity']) > 1
+
         # setup PostgresGreenlet to multiplex DB calls
-        postgres = PostgresGreenlet(connection)
+        postgres = PostgresGreenlet(connection, debug=debug)
         DDPWebSocketApplication.pgworker = postgres
+
+        # use settings.WSGI_APPLICATION or fallback to default Django WSGI app
+        from django.conf import settings
+        if hasattr(settings, 'WSGI_APPLICATION'):
+            wsgi_name = settings.WSGI_APPLICATION
+            wsgi_app = import_string(wsgi_name)
+        else:
+            from django.core.wsgi import get_wsgi_application
+            wsgi_app = get_wsgi_application()
+            wsgi_name = str(wsgi_app.__class__)
+
+        resource = geventwebsocket.Resource({
+            r'/websocket': DDPWebSocketApplication,
+            r'^/sockjs/\d+/\w+/websocket$': DDPWebSocketApplication,
+            r'^/sockjs/\d+/\w+/xhr$': ddpp_sockjs_xhr,
+            r'^/sockjs/info$': ddpp_sockjs_info,
+            r'^/(?!(websocket|sockjs)/)': wsgi_app,
+        })
 
         # setup WebSocketServer to dispatch web requests
         host = options['host']
@@ -119,7 +130,7 @@ class Command(BaseCommand):
         webserver = geventwebsocket.WebSocketServer(
             (host, port),
             resource,
-            debug=int(options['verbosity']) > 1,
+            debug=debug,
         )
 
         def killall(*args, **kwargs):
@@ -135,7 +146,8 @@ class Command(BaseCommand):
         postgres.start()
         print('=> Started PostgresGreenlet.')
         web = gevent.spawn(webserver.serve_forever)
-        print('=> Started your app.')
+        print('=> Started DDPWebSocketApplication.')
+        print('=> Started your app (%s).' % wsgi_name)
         print('')
         print('=> App running at: http://%s:%d/' % (host, port))
         gevent.joinall([postgres, web])

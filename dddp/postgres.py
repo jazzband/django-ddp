@@ -13,6 +13,7 @@ import gevent
 import gevent.queue
 import gevent.select
 import psycopg2  # green
+from geventwebsocket.logging import create_logger
 import psycopg2.extras
 
 
@@ -20,10 +21,11 @@ class PostgresGreenlet(gevent.Greenlet):
 
     """Greenlet for multiplexing database operations."""
 
-    def __init__(self, conn):
+    def __init__(self, conn, debug=False):
         """Prepare async connection."""
         # greenify!
         super(PostgresGreenlet, self).__init__()
+        self.logger = create_logger(__name__, debug=debug)
 
         # queues for processing incoming sub/unsub requests and processing
         self.subs = gevent.queue.Queue()
@@ -78,7 +80,7 @@ class PostgresGreenlet(gevent.Greenlet):
                 while self.conn.notifies:
                     notify = self.conn.notifies.pop()
                     name = notify.channel
-                    print("Got NOTIFY:", notify.pid, name, notify.payload)
+                    self.logger.info("Got NOTIFY (pid=%d, name=%r, payload=%r)", notify.pid, name, notify.payload)
                     try:
                         self._sub_lock.acquire()
                         subs = self.all_subs[name]
@@ -93,7 +95,7 @@ class PostgresGreenlet(gevent.Greenlet):
             elif state == psycopg2.extensions.POLL_READ:
                 gevent.select.select([self.conn.fileno()], [], [])
             else:
-                print('POLL_ERR: %s' % state)
+                self.logger.warn('POLL_ERR: %s' % state)
 
     def process_subs(self):
         """Subtask to process `sub` requests from `self.subs` queue."""
@@ -103,7 +105,7 @@ class PostgresGreenlet(gevent.Greenlet):
                 self._sub_lock.acquire()
                 subs = self.all_subs[name]
                 if len(subs) == 0:
-                    print('LISTEN "%s";' % name)
+                    self.logger.debug('LISTEN "%s";', name)
                     self.poll()
                     self.cur.execute('LISTEN "%s";' % name)
                     self.poll()
@@ -120,7 +122,7 @@ class PostgresGreenlet(gevent.Greenlet):
                 for name, subs in self.all_subs.items():
                     subs.pop((obj, id_), None)
                     if len(subs) == 0:
-                        print('UNLISTEN "%s";' % name)
+                        self.logger.info('UNLISTEN "%s";', name)
                         self.cur.execute('UNLISTEN "%s";' % name)
                         self.poll()
                         del self.all_subs[name]

@@ -80,6 +80,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         'pre1',
         'pre2',
     ]
+    logger = None
     pgworker = None
     remote_addr = None
     version = None
@@ -91,6 +92,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
 
     def on_open(self):
         """Handle new websocket connection."""
+        self.logger = self.ws.logger
         self.request = WSGIRequest(self.ws.environ)
         # Apply request middleware (so we get request.user and other attrs)
         # pylint: disable=protected-access
@@ -105,7 +107,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             self.ws.environ,
         )
         self.subs = {}
-        print('+ %s OPEN %s' % (self, self.request.user))
+        self.logger.info('+ %s OPEN %s', self, self.request.user)
         self.send('o')
         self.send('a["{\\"server_id\\":\\"0\\"}"]')
 
@@ -115,14 +117,14 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
 
     def on_close(self, reason):
         """Handle closing of websocket connection."""
-        print('- %s %s' % (self, reason or 'CLOSE'))
+        self.logger.info('- %s %s', self, reason or 'CLOSE')
 
     def on_message(self, message):
         """Process a message received from remote."""
         if self.ws.closed:
             return None
         try:
-            print('< %s %r' % (self, message))
+            self.logger.debug('< %s %r', self, message)
 
             # parse message set
             try:
@@ -183,7 +185,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
 
     def send(self, data):
         """Send raw `data` to WebSocket client."""
-        print('> %s %r' % (self, data))
+        self.logger.debug('> %s %r', self, data)
         try:
             self.ws.send(data)
         except geventwebsocket.WebSocketError:
@@ -206,7 +208,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             data['reason'] = reason
         if detail:
             data['detail'] = detail
-        print('! %s %r' % (self, data))
+        self.logger.error('! %s %r', self, data)
         self.reply('error', **data)
 
     def recv_connect(self, version, support, session=None):
@@ -268,7 +270,5 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         else:
             try:
                 self.reply('result', id=id_, result=func(**params))
-            except Exception, err:
+            except Exception, err:  # pylint: disable=W0703
                 self.reply('result', id=id_, error='%s' % err)
-            finally:
-                pass
