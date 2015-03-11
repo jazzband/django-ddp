@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='django-ddp',
-    version='0.1.0',
+    version='0.1.1',
     description=__doc__,
     long_description=open('README.rst').read(),
     author='Tyson Clugg',
@@ -16,6 +16,10 @@ setup(
     install_requires=[
         'Django>=1.7',
         'psycopg2>=2.5.4',
+        'gevent>=1.0',
+        'gevent-websocket>=0.9',
+        'meteor-ejson>=1.0',
+        'psycogreen>=1.0',
     ],
     classifiers=[
         "Programming Language :: Python :: 2",
