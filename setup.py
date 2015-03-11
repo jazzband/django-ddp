@@ -10,7 +10,7 @@ setup(
     long_description=open('README.rst').read(),
     author='Tyson Clugg',
     author_email='tyson@clugg.net',
-    url='https://github.com/tysonclugg/django-ddp',
+    url='https://github.com/commoncode/django-ddp',
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
