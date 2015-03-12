@@ -14,7 +14,8 @@ import gevent.queue
 import gevent.select
 import psycopg2  # green
 from geventwebsocket.logging import create_logger
-import psycopg2.extras
+import psycopg2
+import psycopg2.extensions
 
 
 class PostgresGreenlet(gevent.Greenlet):
@@ -41,8 +42,10 @@ class PostgresGreenlet(gevent.Greenlet):
         conn.allow_thread_sharing = True
         self.connection = conn
         self.conn_params = conn.get_connection_params()
-        self.conn_params['async'] = True
-        self.conn = conn.get_new_connection(self.conn_params)
+        self.conn_params.update(
+            async=True,
+        )
+        self.conn = psycopg2.connect(**self.conn_params)
         self.poll()  # wait for conneciton to start
         self.cur = self.conn.cursor()
 
