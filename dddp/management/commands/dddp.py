@@ -85,7 +85,7 @@ class Command(BaseCommand):
         ),
         optparse.make_option(
             '-p', '--port', dest="port", metavar='PORT',
-            help='TCP listening port (default: 3000)', default='3000',
+            help='TCP listening port (default: 8000)', default='8000',
         ),
     )
 
