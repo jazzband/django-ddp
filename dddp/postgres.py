@@ -1,6 +1,6 @@
 """Django DDP PostgreSQL Greenlet."""
 
-from __future__ import print_function, absolute_import
+from __future__ import absolute_import
 
 import collections
 import gevent.monkey
@@ -13,9 +13,8 @@ import gevent
 import gevent.queue
 import gevent.select
 import psycopg2  # green
-from geventwebsocket.logging import create_logger
-import psycopg2
 import psycopg2.extensions
+from geventwebsocket.logging import create_logger
 
 
 class PostgresGreenlet(gevent.Greenlet):
@@ -35,6 +34,7 @@ class PostgresGreenlet(gevent.Greenlet):
         self._stop_event = gevent.event.Event()
 
         # dict of name: subscribers
+        # eg: {'bookstore.book': {'tpozNWMPphaJ2n8bj': <function at ...>}}
         self.all_subs = collections.defaultdict(dict)
         self._sub_lock = gevent.lock.RLock()
 
@@ -60,13 +60,13 @@ class PostgresGreenlet(gevent.Greenlet):
         """Stop subtasks and let run() finish."""
         self._stop_event.set()
 
-    def subscribe(self, func, obj, id_, name, params):
-        """Register callback `func` to be called after NOTIFY for `name`."""
-        self.subs.put((func, obj, id_, name, params))
+    def subscribe(self, func, id_, names):
+        """Register callback `func` to be called after NOTIFY for `names`."""
+        self.subs.put((func, id_, names))
 
-    def unsubscribe(self, func, obj, id_):
-        """Un-register callback `func` to be called after NOTIFY for `name`."""
-        self.unsubs.put((func, obj, id_))
+    def unsubscribe(self, func, id_, names):
+        """Un-register callback `func` to be called after NOTIFY for `names`."""
+        self.unsubs.put((func, id_, names))
 
     def process_conn(self):
         """Subtask to process NOTIFY async events from DB connection."""
@@ -83,13 +83,22 @@ class PostgresGreenlet(gevent.Greenlet):
                 while self.conn.notifies:
                     notify = self.conn.notifies.pop()
                     name = notify.channel
-                    self.logger.info("Got NOTIFY (pid=%d, name=%r, payload=%r)", notify.pid, name, notify.payload)
+                    self.logger.info(
+                        "Got NOTIFY (pid=%d, name=%r, payload=%r)",
+                        notify.pid, name, notify.payload,
+                    )
                     try:
                         self._sub_lock.acquire()
+                        self.logger.info(self.all_subs)
                         subs = self.all_subs[name]
                         data = ejson.loads(notify.payload)
-                        for (_, id_), (func, params) in subs.items():
-                            gevent.spawn(func, id_, name, params, data)
+                        sub_ids = data.pop('_sub_ids')
+                        self.logger.info('Subscribers: %r', sub_ids)
+                        self.logger.info(subs)
+                        for id_, func in subs.items():
+                            if id_ not in sub_ids:
+                                continue  # not for this subscription
+                            gevent.spawn(func, id_, name, data)
                     finally:
                         self._sub_lock.release()
                 break
@@ -98,32 +107,34 @@ class PostgresGreenlet(gevent.Greenlet):
             elif state == psycopg2.extensions.POLL_READ:
                 gevent.select.select([self.conn.fileno()], [], [])
             else:
-                self.logger.warn('POLL_ERR: %s' % state)
+                self.logger.warn('POLL_ERR: %s', state)
 
     def process_subs(self):
         """Subtask to process `sub` requests from `self.subs` queue."""
         while not self._stop_event.is_set():
-            func, obj, id_, name, params = self.subs.get()
+            func, id_, names = self.subs.get()
             try:
                 self._sub_lock.acquire()
-                subs = self.all_subs[name]
-                if len(subs) == 0:
-                    self.logger.debug('LISTEN "%s";', name)
-                    self.poll()
-                    self.cur.execute('LISTEN "%s";' % name)
-                    self.poll()
-                subs[(obj, id_)] = (func, params)
+                for name in names:
+                    subs = self.all_subs[name]
+                    if len(subs) == 0:
+                        self.logger.debug('LISTEN "%s";', name)
+                        self.poll()
+                        self.cur.execute('LISTEN "%s";' % name)
+                        self.poll()
+                    subs[id_] = func
             finally:
                 self._sub_lock.release()
 
     def process_unsubs(self):
         """Subtask to process `unsub` requests from `self.unsubs` queue."""
         while not self._stop_event.is_set():
-            func, obj, id_ = self.unsubs.get()
+            func, id_, names = self.unsubs.get()
             try:
                 self._sub_lock.acquire()
-                for name, subs in self.all_subs.items():
-                    subs.pop((obj, id_), None)
+                for name in names:
+                    subs = self.all_subs[name]
+                    subs.pop(id_, None)
                     if len(subs) == 0:
                         self.logger.info('UNLISTEN "%s";', name)
                         self.cur.execute('UNLISTEN "%s";' % name)
@@ -131,4 +142,4 @@ class PostgresGreenlet(gevent.Greenlet):
                         del self.all_subs[name]
             finally:
                 self._sub_lock.release()
-            gevent.spawn(func, id_)
+            gevent.spawn(func, id_, names)

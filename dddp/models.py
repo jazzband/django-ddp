@@ -1,13 +1,34 @@
 """Django DDP models."""
 
-from django.db import models
-from django.contrib.contenttypes.fields import GenericForeignKey
+from django.db import models, transaction
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from django.utils.module_loading import import_string
+from django.utils.encoding import python_2_unicode_compatible
 import ejson
-from dddp import THREAD_LOCAL
+from dddp import meteor_random_id
 
-METEOR_ID_CHARS = '23456789ABCDEFGHJKLMNPQRSTWXYZabcdefghijkmnopqrstuvwxyz'
+
+@transaction.atomic
+def get_meteor_id(obj):
+    """Return an Alea ID for the given object."""
+    # Django model._meta is now public API -> pylint: disable=W0212
+    content_type = ContentType.objects.get_for_model(obj._meta.model)
+    mapping, _ = ObjectMapping.objects.get_or_create(
+        content_type=content_type,
+        object_id=obj.pk,
+    )
+    return mapping.meteor_id
+
+
+@transaction.atomic
+def get_object_id(model, meteor_id):
+    """Return an object ID for the given meteor_id."""
+    # Django model._meta is now public API -> pylint: disable=W0212
+    content_type = ContentType.objects.get_for_model(model)
+    return ObjectMapping.objects.filter(
+        content_type=content_type,
+        meteor_id=meteor_id,
+    ).values_list('object_id', flat=True).get()
 
 
 class AleaIdField(models.CharField):
@@ -16,21 +37,14 @@ class AleaIdField(models.CharField):
 
     def __init__(self, *args, **kwargs):
         """Assume max_length of 17 to match Meteor implementation."""
-        kwargs.setdefault('max_length', 17)
+        kwargs.update(
+            default=meteor_random_id,
+            max_length=17,
+        )
         super(AleaIdField, self).__init__(*args, **kwargs)
 
-    def pre_save(self, model_instance, add):
-        """Generate value if not set during INSERT."""
-        if add and not getattr(model_instance, self.attname):
-            value = THREAD_LOCAL.alea_random.random_string(
-                self.max_length, METEOR_ID_CHARS,
-            )
-            setattr(model_instance, self.attname, value)
-            return value
-        else:
-            return super(AleaIdField, self).pre_save(self, model_instance, add)
 
-
+@python_2_unicode_compatible
 class ObjectMapping(models.Model):
 
     """Mapping from regular Django model primary keys to Meteor object IDs."""
@@ -38,7 +52,13 @@ class ObjectMapping(models.Model):
     meteor_id = AleaIdField()
     content_type = models.ForeignKey(ContentType, db_index=True)
     object_id = models.PositiveIntegerField()
-    content_object = GenericForeignKey('content_type', 'object_id')
+    # content_object = GenericForeignKey('content_type', 'object_id')
+
+    def __str__(self):
+        """Text representation of a mapping."""
+        return '%s: %s[%s]' % (
+            self.meteor_id, self.content_type, self.object_id,
+        )
 
     class Meta(object):
 
@@ -53,23 +73,63 @@ class ObjectMapping(models.Model):
         ]
 
 
-class SubscriptionManager(models.Manager):
-    def get_queryset(self):
-        return super(SubscriptionManager, self).get_queryset().extra(
-            select={'xmin': 'xmin', 'xmax': 'xmax'},
+@python_2_unicode_compatible
+class Connection(models.Model, object):
+
+    """Django DDP connection instance."""
+
+    session = models.ForeignKey('sessions.Session')
+    connection_id = AleaIdField()
+    remote_addr = models.CharField(max_length=255)
+    version = models.CharField(max_length=255)
+
+    class Meta(object):
+
+        """Connection model meta."""
+
+        unique_together = [
+            ['connection_id', 'session'],
+        ]
+
+    def __str__(self):
+        """Text representation of subscription."""
+        return u'%s/\u200b%s/\u200b%s' % (
+            self.session_id,
+            self.connection_id,
+            self.remote_addr,
         )
 
 
-class Subscription(models.Model):
+@python_2_unicode_compatible
+class Subscription(models.Model, object):
 
     """Session subscription to a publication with params."""
 
     _publication_cache = {}
-    session = models.ForeignKey('sessions.Session')
+    connection = models.ForeignKey(Connection)
+    sub_id = models.CharField(max_length=17)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL)
     publication = models.CharField(max_length=255)
+    publication_class = models.CharField(max_length=255)
     params_ejson = models.TextField(default='{}')
 
-    objects = SubscriptionManager()
+    class Meta(object):
+
+        """Subscription model meta."""
+
+        unique_together = [
+            ['connection', 'sub_id'],
+        ]
+
+    def __str__(self):
+        """Text representation of subscription."""
+        return u'%s/\u200b%s/\u200b%s: %s%s' % (
+            self.user,
+            self.connection_id,
+            self.sub_id,
+            self.publication,
+            self.params_ejson,
+        )
 
     def get_params(self):
         """Get params dict."""
@@ -81,19 +141,17 @@ class Subscription(models.Model):
 
     params = property(get_params, set_params)
 
-    def get_publication_class(self):
-        """Get publication class (cached)."""
-        try:
-            return Subscription._publication_cache[self.publication]
-        except KeyError:
-            pub_cls = import_string(self.publication)
-            Subscription._publication_cache[self.publication] = pub_cls
-            return pub_cls
 
-    def get_publication(self):
-        """Get publication instance (with params)."""
-        return self.get_publication_class()(self.params)
+@python_2_unicode_compatible
+class SubscriptionCollection(models.Model):
 
-    def get_queryset(self):
-        pub = self.get_publication()
-        return pub.get_queryset()
+    """Collections for a subscription."""
+
+    subscription = models.ForeignKey(Subscription, related_name='collections')
+    name = models.CharField(max_length=255)
+    collection_class = models.CharField(max_length=255)
+
+    def __str__(self):
+        return '%s' % (
+            self.name,
+        )

@@ -3,6 +3,7 @@
 from __future__ import print_function, absolute_import
 
 import collections
+import inspect
 import optparse
 import random
 import signal
@@ -19,6 +20,7 @@ import gevent.select
 import geventwebsocket
 import psycogreen.gevent
 
+from dddp import autodiscover
 from dddp.postgres import PostgresGreenlet
 from dddp.websocket import DDPWebSocketApplication
 
@@ -141,6 +143,17 @@ class Command(BaseCommand):
         # die gracefully with SIGINT or SIGQUIT
         gevent.signal(signal.SIGINT, killall)
         gevent.signal(signal.SIGQUIT, killall)
+
+        print('=> Discovering DDP endpoints...')
+        ddp = autodiscover()
+        ddp.pgworker = postgres
+        print(
+            '\n'.join(
+                '    %s' % api_path
+                for api_path
+                in sorted(ddp.api_path_map())
+            ),
+        )
 
         # start greenlets
         postgres.start()

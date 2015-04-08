@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='django-ddp',
-    version='0.1.1',
+    version='0.2.0',
     description=__doc__,
     long_description=open('README.rst').read(),
     author='Tyson Clugg',
@@ -20,6 +20,7 @@ setup(
         'gevent-websocket>=0.9',
         'meteor-ejson>=1.0',
         'psycogreen>=1.0',
+        'django-dbarray>=0.2',
     ],
     classifiers=[
         "Programming Language :: Python :: 2",

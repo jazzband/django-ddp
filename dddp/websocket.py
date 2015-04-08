@@ -1,18 +1,18 @@
 """Django DDP WebSocket service."""
 
-from __future__ import print_function, absolute_import
+from __future__ import absolute_import
 
 import inspect
 import traceback
-import uuid
 
 import ejson
 import geventwebsocket
 from django.core.handlers.base import BaseHandler
 from django.core.handlers.wsgi import WSGIRequest
-from django.db.models.loading import get_model
+from django.db import transaction
 
-from dddp.msg import obj_change_as_msg
+from dddp import THREAD_LOCAL as this, alea
+from dddp.api import API
 
 
 class MeteorError(Exception):
@@ -44,7 +44,7 @@ def validate_kwargs(func, kwargs, func_name=None):
         if key_adj in args:
             kwargs[key_adj] = kwargs.pop(key)
 
-    required = args[:-len(argspec.defaults)]
+    required = args[:-len(argspec.defaults or [])]
     supplied = sorted(kwargs)
     missing = [
         trans.get(arg, arg) for arg in required
@@ -85,7 +85,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
     remote_addr = None
     version = None
     support = None
-    session = None
+    connection = None
     subs = None
     request = None
     base_handler = BaseHandler()
@@ -102,12 +102,20 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             response = middleware_method(self.request)
             if response:
                 raise ValueError(response)
+        this.ws = self
+        this.request = self.request
+        this.send = self.send
+        this.send_msg = self.send_msg
+        this.reply = self.reply
+        this.error = self.error
+        this.session_key = this.request.session.session_key
 
-        self.remote_addr = '{0[REMOTE_ADDR]}:{0[REMOTE_PORT]}'.format(
-            self.ws.environ,
-        )
+        this.remote_addr = self.remote_addr = \
+            '{0[REMOTE_ADDR]}:{0[REMOTE_PORT]}'.format(
+                self.ws.environ,
+            )
         self.subs = {}
-        self.logger.info('+ %s OPEN %s', self, self.request.user)
+        self.logger.info('+ %s OPEN %s', self, this.request.user)
         self.send('o')
         self.send('a["{\\"server_id\\":\\"0\\"}"]')
 
@@ -117,8 +125,12 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
 
     def on_close(self, reason):
         """Handle closing of websocket connection."""
+        if self.connection is not None:
+            self.connection.delete()
+            self.connection = None
         self.logger.info('- %s %s', self, reason or 'CLOSE')
 
+    @transaction.atomic
     def on_message(self, message):
         """Process a message received from remote."""
         if self.ws.closed:
@@ -149,10 +161,13 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
                     try:
                         msg = data.pop('msg')
                     except KeyError:
-                        raise MeteorError(400, 'Missing `msg` parameter', raw)
+                        raise MeteorError(
+                            400, 'Bad request', None, {'offendingMessage': data}
+                        )
                     # dispatch message
                     self.dispatch(msg, data)
                 except MeteorError, err:
+                    traceback.print_exc()
                     self.error(err)
                 except Exception, err:
                     traceback.print_exc()
@@ -165,7 +180,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
     def dispatch(self, msg, kwargs):
         """Dispatch msg to appropriate recv_foo handler."""
         # enforce calling 'connect' first
-        if not self.session and msg != 'connect':
+        if self.connection is None and msg != 'connect':
             raise MeteorError(400, 'Session not establised - try `connect`.')
 
         # lookup method handler
@@ -180,8 +195,9 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         # dispatch to handler
         try:
             handler(**kwargs)
-        except Exception, err:
-            raise MeteorError(500, 'Internal server error', err)
+        except Exception, err:  # print stack trace --> pylint: disable=W0703
+            traceback.print_exc()
+            self.error(MeteorError(500, 'Internal server error', err))
 
     def send(self, data):
         """Send raw `data` to WebSocket client."""
@@ -191,45 +207,64 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         except geventwebsocket.WebSocketError:
             self.ws.close()
 
+    def send_msg(self, payload):
+        """Send EJSON payload to remote."""
+        data = ejson.dumps([ejson.dumps(payload)])
+        self.send('a%s' % data)
+
     def reply(self, msg, **kwargs):
         """Send EJSON reply to remote."""
         kwargs['msg'] = msg
-        data = ejson.dumps([ejson.dumps(kwargs)])
-        self.send('a%s' % data)
+        self.send_msg(kwargs)
 
-    def error(self, err, reason=None, detail=None):
+    def error(self, err, reason=None, detail=None, **kwargs):
         """Send EJSON error to remote."""
         if isinstance(err, MeteorError):
-            (err, reason, detail) = (err.args[:] + (None, None, None))[:3]
+            (
+                err, reason, detail, kwargs,
+            ) = (
+                err.args[:] + (None, None, None, None)
+            )[:4]
+        elif isinstance(err, Exception):
+            reason = str(err)
         data = {
             'error': '%s' % (err or '<UNKNOWN_ERROR>'),
         }
         if reason:
+            if reason is Exception:
+                reason = str(reason)
             data['reason'] = reason
         if detail:
+            if isinstance(detail, Exception):
+                detail = str(detail)
             data['detail'] = detail
+        if kwargs:
+            data.update(kwargs)
         self.logger.error('! %s %r', self, data)
         self.reply('error', **data)
 
     def recv_connect(self, version, support, session=None):
         """DDP connect handler."""
-        if self.session:
+        if self.connection is not None:
             self.error(
                 'Session already established.',
                 reason='Current session in detail.',
-                detail=self.session,
+                detail=self.connection.connection_id,
             )
         elif version not in self.versions:
             self.reply('failed', version=self.versions[0])
         elif version not in support:
             self.error('Client version/support mismatch.')
         else:
-            if not session:
-                session = uuid.uuid4().hex
-            self.version = version
-            self.support = support
-            self.session = session
-            self.reply('connected', session=self.session)
+            from dddp.models import Connection
+            this.version = version
+            this.support = support
+            self.connection = Connection.objects.create(
+                session_id=this.session_key,
+                remote_addr=self.remote_addr,
+                version=version,
+            )
+            self.reply('connected', session=self.connection.connection_id)
 
     def recv_ping(self, id_=None):
         """DDP ping handler."""
@@ -242,33 +277,17 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         """Send added/changed/removed msg due to receiving NOTIFY."""
         self.reply(**data)
 
-    def recv_sub(self, id_, name, params=None):
+    def recv_sub(self, id_, name, params):
         """DDP sub handler."""
-        self.pgworker.subscribe(self.sub_notify, self, id_, name, params)
-
-        model = get_model(name)
-        for obj in model.objects.all():
-            _, payload = obj_change_as_msg(obj, 'added')
-            self.sub_notify(id_, name, params, payload)
-
-        self.reply('ready', subs=[id_])
-
-    def sub_unnotify(self, id_):
-        """Send added/changed/removed msg due to receiving NOTIFY."""
-        pass  # TODO: find out if we're meant to send anything to the client
+        API.sub(id_, name, *params)
 
     def recv_unsub(self, id_):
         """DDP unsub handler."""
-        self.pgworker.unsubscribe(self.sub_unnotify, self, id_)
+        API.unsub(id_)
 
     def recv_method(self, method, params, id_, randomSeed=None):
         """DDP method handler."""
-        try:
-            func = self.methods[method]
-        except KeyError:
-            self.reply('result', id=id_, error=u'Unknown method: %s' % method)
-        else:
-            try:
-                self.reply('result', id=id_, result=func(**params))
-            except Exception, err:  # pylint: disable=W0703
-                self.reply('result', id=id_, error='%s' % err)
+        if randomSeed is not None:
+            this.alea_random = alea.Alea(randomSeed)
+        API.method(method, params, id_)
+        self.reply('updated', methods=[id_])

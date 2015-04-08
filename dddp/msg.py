@@ -1,13 +1,15 @@
 """Django DDP utils for DDP messaging."""
+import collections
+from django.core.serializers import get_serializer
 
-from django.core import serializers
-
-SERIALIZER = serializers.get_serializer('python')()
-
+_SERIALIZER = None
 
 def obj_change_as_msg(obj, msg):
     """Generate a DDP msg for obj with specified msg type."""
-    data = SERIALIZER.serialize([obj])[0]
+    global _SERIALIZER
+    if _SERIALIZER is None:
+        _SERIALIZER = get_serializer('ddp')()
+    data = _SERIALIZER.serialize([obj])[0]
     name = data['model']
 
     # cast ID as string
