@@ -22,29 +22,38 @@ class MeteorError(Exception):
     pass
 
 
-def validate_kwargs(func, kwargs, func_name=None):
+def validate_kwargs(func, kwargs):
     """Validate arguments to be supplied to func."""
-    if func_name is None:
-        func_name = func.__name__
+    func_name = func.__name__
     argspec = inspect.getargspec(func)
-    args = argspec.args[:]
+    all_args = argspec.args[:]
+    defaults = list(argspec.defaults or [])
 
     # ignore implicit 'self' argument
-    if inspect.ismethod(func) and args[0] == 'self':
-        args[:1] = []
+    if inspect.ismethod(func) and all_args[0] == 'self':
+        all_args[:1] = []
+
+    # don't require arguments that have defaults
+    if defaults:
+        required = all_args[:-len(defaults)]
+    else:
+        required = all_args[:]
+    optional = [
+        arg for arg in all_args if arg not in required
+    ]
 
     # translate 'foo_' to avoid reserved names like 'id'
     trans = {
         arg: arg.endswith('_') and arg[:-1] or arg
         for arg
-        in args
+        in all_args
     }
     for key in list(kwargs):
         key_adj = '%s_' % key
-        if key_adj in args:
+        if key_adj in all_args:
             kwargs[key_adj] = kwargs.pop(key)
 
-    required = args[:-len(argspec.defaults or [])]
+    # figure out what we're missing
     supplied = sorted(kwargs)
     missing = [
         trans.get(arg, arg) for arg in required
@@ -56,10 +65,13 @@ def validate_kwargs(func, kwargs, func_name=None):
                 func_name,
                 ' '.join(missing),
             ),
+            getattr(func, 'err', None),
         )
+
+    # figure out what is extra
     extra = [
         arg for arg in supplied
-        if arg not in args
+        if arg not in all_args
     ]
     if extra:
         raise MeteorError(
@@ -181,7 +193,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         """Dispatch msg to appropriate recv_foo handler."""
         # enforce calling 'connect' first
         if self.connection is None and msg != 'connect':
-            raise MeteorError(400, 'Session not establised - try `connect`.')
+            raise MeteorError(400, 'Must connect first')
 
         # lookup method handler
         try:
@@ -201,6 +213,8 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
 
     def send(self, data):
         """Send raw `data` to WebSocket client."""
+        if data[1:]:
+            msg = ejson.loads(data[1:])
         self.logger.debug('> %s %r', self, data)
         try:
             self.ws.send(data)
@@ -243,7 +257,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         self.logger.error('! %s %r', self, data)
         self.reply('error', **data)
 
-    def recv_connect(self, version, support, session=None):
+    def recv_connect(self, version=None, support=None, session=None):
         """DDP connect handler."""
         if self.connection is not None:
             self.error(
@@ -251,7 +265,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
                 reason='Current session in detail.',
                 detail=self.connection.connection_id,
             )
-        elif version not in self.versions:
+        elif None in (version, support) or version not in self.versions:
             self.reply('failed', version=self.versions[0])
         elif version not in support:
             self.error('Client version/support mismatch.')
@@ -280,10 +294,14 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
     def recv_sub(self, id_, name, params):
         """DDP sub handler."""
         API.sub(id_, name, *params)
+    recv_sub.err = 'Malformed subscription'
 
-    def recv_unsub(self, id_):
+    def recv_unsub(self, id_=None):
         """DDP unsub handler."""
-        API.unsub(id_)
+        if id_:
+            API.unsub(id_)
+        else:
+            self.reply('nosub')
 
     def recv_method(self, method, params, id_, randomSeed=None):
         """DDP method handler."""
@@ -291,3 +309,4 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             this.alea_random = alea.Alea(randomSeed)
         API.method(method, params, id_)
         self.reply('updated', methods=[id_])
+    recv_method.err = 'Malformed method invocation'
