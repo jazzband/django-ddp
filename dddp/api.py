@@ -386,8 +386,12 @@ class DDP(APIMixin):
         ws.send_msg(data)
 
     @api_endpoint
-    @transaction.atomic
     def sub(self, id_, name, *params):
+        """Create subscription, send matched objects that haven't been sent."""
+        return self._sub( id_, name, *params)
+
+    @transaction.atomic
+    def _sub(self, id_, name, *params):
         """Create subscription, send matched objects that haven't been sent."""
         try:
             pub = self._registry[pub_path(name)]
