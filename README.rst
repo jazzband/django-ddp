@@ -93,7 +93,6 @@ Add ddp.py to your Django app:
 Connect your Meteor app to the Django DDP service:
 
 .. code:: javascript
-    :number-lines:
 
     // bookstore.js
     if (Meteor.isClient) {
