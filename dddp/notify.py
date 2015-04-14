@@ -8,7 +8,7 @@ from django.db import connections
 from django.utils.module_loading import import_string
 
 from dddp.api import collection_name
-from dddp.models import Subscription
+from dddp.models import get_meteor_id, Subscription
 from dddp.msg import obj_change_as_msg
 
 
@@ -49,6 +49,7 @@ def send_notify(model, obj, msg, using):
                 sub_ids.add(sub.sub_id)
 
     if not sub_ids:
+        get_meteor_id(obj)  # force creation of meteor ID using randomSeed
         return  # no subscribers for this object, nothing more to do.
 
     name, payload = obj_change_as_msg(obj, msg)

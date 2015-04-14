@@ -306,6 +306,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
     def recv_method(self, method, params, id_, randomSeed=None):
         """DDP method handler."""
         if randomSeed is not None:
+            this.random_streams.random_seed = randomSeed
             this.alea_random = alea.Alea(randomSeed)
         API.method(method, params, id_)
         self.reply('updated', methods=[id_])

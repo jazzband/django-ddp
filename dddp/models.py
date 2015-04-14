@@ -3,6 +3,7 @@
 from django.db import models, transaction
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ObjectDoesNotExist
 from django.utils.encoding import python_2_unicode_compatible
 import ejson
 from dddp import meteor_random_id
@@ -12,12 +13,22 @@ from dddp import meteor_random_id
 def get_meteor_id(obj):
     """Return an Alea ID for the given object."""
     # Django model._meta is now public API -> pylint: disable=W0212
-    content_type = ContentType.objects.get_for_model(obj._meta.model)
-    mapping, _ = ObjectMapping.objects.get_or_create(
-        content_type=content_type,
-        object_id=obj.pk,
-    )
-    return mapping.meteor_id
+    meta = obj._meta
+    obj_pk = str(obj.pk)
+    content_type = ContentType.objects.get_for_model(meta.model)
+    try:
+        return ObjectMapping.objects.values_list(
+            'meteor_id', flat=True,
+        ).get(
+            content_type=content_type,
+            object_id=obj_pk,
+        )
+    except ObjectDoesNotExist:
+        return ObjectMapping.objects.create(
+            content_type=content_type,
+            object_id=obj_pk,
+            meteor_id=meteor_random_id('/collection/%s' % meta),
+        ).meteor_id
 
 
 @transaction.atomic
@@ -51,7 +62,7 @@ class ObjectMapping(models.Model):
 
     meteor_id = AleaIdField()
     content_type = models.ForeignKey(ContentType, db_index=True)
-    object_id = models.PositiveIntegerField()
+    object_id = models.CharField(max_length=255)
     # content_object = GenericForeignKey('content_type', 'object_id')
 
     def __str__(self):
