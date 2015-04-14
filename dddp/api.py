@@ -498,7 +498,10 @@ class DDP(APIMixin):
             return
         try:
             result = handler(*params)
-            this.send_msg({'msg': 'result', 'id': id_, 'result': result})
+            msg = {'msg': 'result', 'id': id_}
+            if result is not None:
+                msg['result'] = result
+            this.send_msg(msg)
         except Exception, err:  # log error+stack trace -> pylint: disable=W0703
             details = traceback.format_exc()
             this.ws.logger.error(err, exc_info=True)
