@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 from django.contrib import admin
 from django.core.urlresolvers import reverse, NoReverseMatch
 from django.utils.html import format_html
@@ -6,7 +7,7 @@ from dddp import models
 
 def object_admin_link(obj):
     kwargs = {
-        'format_string': '{app_label}.{model} {object_id}: {object}',
+        'format_string': u'{app_label}.{model} {object_id}: {object}',
         'app_label': obj.content_type.app_label,
         'model': obj.content_type.model,
         'object_id': obj.object_id,

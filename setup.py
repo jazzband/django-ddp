@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='django-ddp',
-    version='0.2.3',
+    version='0.2.5',
     description=__doc__,
     long_description=open('README.rst').read(),
     author='Tyson Clugg',

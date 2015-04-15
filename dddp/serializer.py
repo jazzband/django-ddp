@@ -63,8 +63,9 @@ class Serializer(base.Serializer):
             else:
                 value = None
         else:
-            value = getattr(obj, field.get_attname())
-            value = get_meteor_id(obj)
+            value = getattr(obj, field.name)
+            if value is not None:
+                value = get_meteor_id(value)
         self._current[field.column] = value
 
     def handle_m2m_field(self, obj, field):
