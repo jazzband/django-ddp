@@ -155,6 +155,11 @@ class Alea(object):
             self.choice(alphabet) for n in range(length)
         )
 
+    def hex_string(self, digits):
+        """Return a hex string of `digits` length."""
+        return self.random_string(digits, '0123456789abcdef')
+
+
 if __name__ == '__main__':
     import doctest
     doctest.testmod()

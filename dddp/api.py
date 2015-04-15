@@ -386,8 +386,12 @@ class DDP(APIMixin):
         ws.send_msg(data)
 
     @api_endpoint
-    @transaction.atomic
     def sub(self, id_, name, *params):
+        """Create subscription, send matched objects that haven't been sent."""
+        return self._sub( id_, name, *params)
+
+    @transaction.atomic
+    def _sub(self, id_, name, *params):
         """Create subscription, send matched objects that haven't been sent."""
         try:
             pub = self._registry[pub_path(name)]
@@ -494,7 +498,10 @@ class DDP(APIMixin):
             return
         try:
             result = handler(*params)
-            this.send_msg({'msg': 'result', 'id': id_, 'result': result})
+            msg = {'msg': 'result', 'id': id_}
+            if result is not None:
+                msg['result'] = result
+            this.send_msg(msg)
         except Exception, err:  # log error+stack trace -> pylint: disable=W0703
             details = traceback.format_exc()
             this.ws.logger.error(err, exc_info=True)

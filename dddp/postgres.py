@@ -3,10 +3,6 @@
 from __future__ import absolute_import
 
 import collections
-import gevent.monkey
-import psycogreen.gevent
-gevent.monkey.patch_all()
-psycogreen.gevent.patch_psycopg()
 
 import ejson
 import gevent
