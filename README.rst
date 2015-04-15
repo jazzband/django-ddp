@@ -18,7 +18,9 @@ Peer servers subscribe to aggregate broadcast events only for channels (Django m
 
 Limitations
 -----------
-The 0.2.x release series only supports DDP via WebSockets_, version 0.3.0 and beyond are expected to also use SockJS, to support browsers that don't have WebSockets.
+The 0.2.x release series only supports DDP via WebSockets_.  Future
+development may resolve this by using SockJS, to support browsers that
+don't have WebSockets.
 
 Changes must be made via the Django ORM as django-ddp uses `Django signals`_ to receive model save/update signals.
 
@@ -109,7 +111,7 @@ Start the Django DDP service:
 
 .. code:: sh
 
-    manage.py dddp
+    DJANGO_SETTINGS_MODULE=myproject.settings dddp
 
 In a separate terminal, start Meteor (from within your meteor app directory):
 

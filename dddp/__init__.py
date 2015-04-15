@@ -3,7 +3,6 @@ from __future__ import unicode_literals
 import os.path
 from pkg_resources import get_distribution, DistributionNotFound
 from gevent.local import local
-from django.utils.module_loading import autodiscover_modules
 from dddp import alea
 
 try:
@@ -93,6 +92,7 @@ def meteor_random_id(name=None):
 
 
 def autodiscover():
+    from django.utils.module_loading import autodiscover_modules
     from dddp.api import API
     autodiscover_modules('ddp', register_to=API)
     return API

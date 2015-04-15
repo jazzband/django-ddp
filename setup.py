@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='django-ddp',
-    version='0.2.2',
+    version='0.2.3',
     description=__doc__,
     long_description=open('README.rst').read(),
     author='Tyson Clugg',
@@ -22,6 +22,11 @@ setup(
         'psycogreen>=1.0',
         'django-dbarray>=0.2',
     ],
+    entry_points={
+        'console_scripts': [
+            'dddp=dddp.main:main',
+        ],
+    },
     classifiers=[
         "Programming Language :: Python :: 2",
         "Programming Language :: Python :: 3",
