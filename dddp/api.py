@@ -538,8 +538,8 @@ class DDP(APIMixin):
         """Return schema for all registered collections."""
         res = {}
         for api_provider in self.api_providers:
-            if issubclass(api_provider, Collection):
-                collection = api_provider()
+            if isinstance(api_provider, Collection):
+                collection = api_provider
                 res[collection_name(collection.model)] = collection.schema()
         return res
 
