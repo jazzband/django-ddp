@@ -8,77 +8,32 @@ from __future__ import unicode_literals
 from django.apps import apps
 from django.conf import settings
 from django.core.serializers import base
+from django.core.serializers import python
 from django.db import DEFAULT_DB_ALIAS, models
 from django.utils import six
 from django.utils.encoding import force_text, is_protected_type
 from dddp.models import get_meteor_id
 
 
-class Serializer(base.Serializer):
+class Serializer(python.Serializer):
     """
     Serializes a QuerySet to basic Python objects.
     """
 
-    internal_use_only = True
-
-    def start_serialization(self):
-        self._current = None
-        self.objects = []
-
-    def end_serialization(self):
-        pass
-
-    def start_object(self, obj):
-        self._current = {}
-
-    def end_object(self, obj):
-        self.objects.append(self.get_dump_object(obj))
-        self._current = None
-
     def get_dump_object(self, obj):
-        data = {
-            "model": force_text(obj._meta),
-            "fields": self._current,
-        }
-        if not self.use_natural_primary_keys or not hasattr(obj, 'natural_key'):
-            data["pk"] = get_meteor_id(obj)
-
+        data = super(Serializer, self).get_dump_object(obj)
+        data["pk"] = get_meteor_id(obj)
         return data
 
-    def handle_field(self, obj, field):
-        value = field._get_val_from_obj(obj)
-        # Protected types (i.e., primitives like None, numbers, dates,
-        # and Decimals) are passed through as is. All other values are
-        # converted to string first.
-        if is_protected_type(value):
-            self._current[field.column] = value
-        else:
-            self._current[field.column] = field.value_to_string(obj)
-
     def handle_fk_field(self, obj, field):
-        if self.use_natural_foreign_keys and hasattr(field.rel.to, 'natural_key'):
-            related = getattr(obj, field.name)
-            if related:
-                value = related.natural_key()
-            else:
-                value = None
-        else:
-            value = getattr(obj, field.name)
-            if value is not None:
-                value = get_meteor_id(value)
-        self._current[field.column] = value
+        value = getattr(obj, field.name)
+        self._current[field.column] = get_meteor_id(value)
 
     def handle_m2m_field(self, obj, field):
         if field.rel.through._meta.auto_created:
-            if self.use_natural_foreign_keys and hasattr(field.rel.to, 'natural_key'):
-                m2m_value = lambda value: value.natural_key()
-            else:
-                m2m_value = lambda value: get_meteor_id(value)
+            m2m_value = lambda value: get_meteor_id(value)
             self._current['%s_ids' % field.name] = [m2m_value(related)
                                for related in getattr(obj, field.name).iterator()]
-
-    def getvalue(self):
-        return self.objects
 
 
 def Deserializer(object_list, **options):
