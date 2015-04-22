@@ -473,7 +473,7 @@ class DDP(APIMixin):
                 this.send_msg(payload)
         this.send_msg({'msg': 'ready', 'subs': [id_]})
 
-    def unsub_notify(self, id_, names):
+    def unsub_notify(self, id_):
         """Dispatch DDP updates to connections."""
         (ws, _) = self._subs.pop(id_, (None, []))
         if ws is not None:
