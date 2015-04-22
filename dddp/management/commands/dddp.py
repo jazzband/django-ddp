@@ -9,6 +9,7 @@ import random
 import signal
 import socket
 
+from django.core.management import get_commands, load_command_class
 from django.core.management.base import BaseCommand
 from django.db import connection, close_old_connections
 from django.utils.module_loading import import_string
@@ -72,26 +73,22 @@ def ddpp_sockjs_info(environ, start_response):
     ]))
 
 
-class Command(BaseCommand):
+app_name = get_commands()['runserver']
+if isinstance(app_name, BaseCommand):
+    command_class = app_name
+else:
+    command_class = load_command_class(app_name, 'runserver')
+command_class = command_class.__class__
+
+
+class Command(command_class):
 
     """Command to run DDP web service."""
 
     args = 'HOST PORT'
     help = 'Run DDP service'
-    requires_system_checks = False
 
-    option_list = BaseCommand.option_list + (
-        optparse.make_option(
-            '-H', '--host', dest="host", metavar='HOST',
-            help='TCP listening host (default: localhost)', default='localhost',
-        ),
-        optparse.make_option(
-            '-p', '--port', dest="port", metavar='PORT',
-            help='TCP listening port (default: 8000)', default='8000',
-        ),
-    )
-
-    def handle(self, *args, **options):
+    def run(self, *args, **options):
         """Spawn greenlets for handling websockets and PostgreSQL calls."""
         # shutdown existing connections, mokey patch stdlib for gevent.
         close_old_connections()
@@ -106,12 +103,10 @@ class Command(BaseCommand):
 
         # use settings.WSGI_APPLICATION or fallback to default Django WSGI app
         from django.conf import settings
+        wsgi_app = self.get_handler(*args, **options)
         if hasattr(settings, 'WSGI_APPLICATION'):
             wsgi_name = settings.WSGI_APPLICATION
-            wsgi_app = import_string(wsgi_name)
         else:
-            from django.core.wsgi import get_wsgi_application
-            wsgi_app = get_wsgi_application()
             wsgi_name = str(wsgi_app.__class__)
 
         resource = geventwebsocket.Resource({
@@ -123,8 +118,8 @@ class Command(BaseCommand):
         })
 
         # setup WebSocketServer to dispatch web requests
-        host = options['host']
-        port = options['port']
+        host = self.addr
+        port = self.port
         if port.isdigit():
             port = int(port)
         else:
