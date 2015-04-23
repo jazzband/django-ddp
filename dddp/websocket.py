@@ -2,14 +2,17 @@
 
 from __future__ import absolute_import
 
+import atexit
 import inspect
+import sys
 import traceback
 
 import ejson
 import geventwebsocket
+from django.conf import settings
 from django.core.handlers.base import BaseHandler
 from django.core.handlers.wsgi import WSGIRequest
-from django.db import transaction
+from django.db import connection, transaction
 
 from dddp import THREAD_LOCAL as this, alea
 from dddp.api import API
@@ -271,13 +274,21 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             self.error('Client version/support mismatch.')
         else:
             from dddp.models import Connection
+            cur = connection.cursor()
+            cur.execute('SELECT pg_backend_pid()')
+            (backend_pid,) = cur.fetchone()
             this.version = version
             this.support = support
             self.connection = Connection.objects.create(
                 session_id=this.session_key,
+                server_addr='%d:%s' % (
+                    backend_pid,
+                    self.ws.handler.socket.getsockname(),
+                ),
                 remote_addr=self.remote_addr,
                 version=version,
             )
+            atexit.register(self.on_close, 'Shutting down.')
             self.reply('connected', session=self.connection.connection_id)
 
     def recv_ping(self, id_=None):

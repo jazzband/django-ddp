@@ -16,6 +16,9 @@ def get_meteor_id(obj):
         return None
     # Django model._meta is now public API -> pylint: disable=W0212
     meta = obj._meta
+    if meta.model is ObjectMapping:
+        # this doesn't make sense - raise TypeError
+        raise TypeError("Can't map ObjectMapping instances through self.")
     obj_pk = str(obj.pk)
     content_type = ContentType.objects.get_for_model(meta.model)
     try:
@@ -36,6 +39,9 @@ def get_meteor_id(obj):
 @transaction.atomic
 def get_object_id(model, meteor_id):
     """Return an object ID for the given meteor_id."""
+    if model is ObjectMapping:
+        # this doesn't make sense - raise TypeError
+        raise TypeError("Can't map ObjectMapping instances through self.")
     # Django model._meta is now public API -> pylint: disable=W0212
     content_type = ContentType.objects.get_for_model(model)
     return ObjectMapping.objects.filter(
@@ -101,6 +107,7 @@ class Connection(models.Model, object):
 
     session = models.ForeignKey('sessions.Session')
     connection_id = AleaIdField()
+    server_addr = models.CharField(max_length=255)
     remote_addr = models.CharField(max_length=255)
     version = models.CharField(max_length=255)
 
@@ -173,6 +180,7 @@ class SubscriptionCollection(models.Model):
     collection_class = models.CharField(max_length=255)
 
     def __str__(self):
+        """Human readable representation of colleciton for a subscription."""
         return '%s' % (
             self.name,
         )
