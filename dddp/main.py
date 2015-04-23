@@ -9,18 +9,6 @@ import sys
 Addr = collections.namedtuple('Addr', ['host', 'port'])
 
 
-def greenify():
-    """Patch threading and psycopg2 modules for green threads."""
-    if 'threading' in sys.modules:
-        raise Exception('threading module loaded before patching!')
-
-    from gevent.monkey import patch_all
-    patch_all()
-
-    from psycogreen.gevent import patch_psycopg
-    patch_psycopg()
-
-
 def ddpp_sockjs_xhr(environ, start_response):
     """Dummy method that doesn't handle XHR requests."""
     start_response(
@@ -200,10 +188,10 @@ def main():
         'listen', metavar='address[:port]', nargs='*', type=addr,
     )
     namespace = parser.parse_args()
-    # monkey patch stdlib for gevent.
-    greenify()
     serve(namespace.listen or [Addr('localhost', 8000)])
 
 
 if __name__ == '__main__':
+    from dddp import greenify
+    greenify()
     main()
