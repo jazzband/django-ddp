@@ -12,7 +12,7 @@ from django.core.serializers import python
 from django.db import DEFAULT_DB_ALIAS, models
 from django.utils import six
 from django.utils.encoding import force_text, is_protected_type
-from dddp.models import get_meteor_id
+from dddp.models import get_meteor_id, get_object_id
 
 
 class Serializer(python.Serializer):
@@ -57,13 +57,17 @@ def Deserializer(object_list, **options):
                 raise
         data = {}
         if 'pk' in d:
-            data[Model._meta.pk.attname] = Model._meta.pk.to_python(d.get("pk", None))
+            data[Model._meta.pk.attname] = Model._meta.pk.to_python(
+                get_object_id(Model, d.get("pk", None)),
+            )
         m2m_data = {}
-        field_names = {f.name for f in Model._meta.get_fields()}
+        field_names = {f.name for f in Model._meta.fields}
         field_name_map = {
             f.column: f.name
-            for f in Model._meta.get_fields()
+            for f in Model._meta.fields
         }
+        for field in Model._meta.many_to_many:
+            field_name_map.setdefault('%s_ids' % field.name, field.name)
 
         # Handle each field
         for (field_column, field_value) in six.iteritems(d["fields"]):
@@ -82,32 +86,13 @@ def Deserializer(object_list, **options):
 
             # Handle M2M relations
             if field.rel and isinstance(field.rel, models.ManyToManyRel):
-                if hasattr(field.rel.to._default_manager, 'get_by_natural_key'):
-                    def m2m_convert(value):
-                        if hasattr(value, '__iter__') and not isinstance(value, six.text_type):
-                            return field.rel.to._default_manager.db_manager(db).get_by_natural_key(*value).pk
-                        else:
-                            return force_text(field.rel.to._meta.pk.to_python(value), strings_only=True)
-                else:
-                    m2m_convert = lambda v: force_text(field.rel.to._meta.pk.to_python(v), strings_only=True)
-                m2m_data[field.name] = [m2m_convert(pk) for pk in field_value]
+                m2m_data[field.name] = [get_object_id(field.rel.to, pk) for pk in field_value]
 
             # Handle FK fields
             elif field.rel and isinstance(field.rel, models.ManyToOneRel):
                 if field_value is not None:
-                    if hasattr(field.rel.to._default_manager, 'get_by_natural_key'):
-                        if hasattr(field_value, '__iter__') and not isinstance(field_value, six.text_type):
-                            obj = field.rel.to._default_manager.db_manager(db).get_by_natural_key(*field_value)
-                            value = getattr(obj, field.rel.field_name)
-                            # If this is a natural foreign key to an object that
-                            # has a FK/O2O as the foreign key, use the FK value
-                            if field.rel.to._meta.pk.rel:
-                                value = value.pk
-                        else:
-                            value = field.rel.to._meta.get_field(field.rel.field_name).to_python(field_value)
-                        data[field.attname] = value
-                    else:
-                        data[field.attname] = field.rel.to._meta.get_field(field.rel.field_name).to_python(field_value)
+                    field_value= get_object_id(field.rel.to, field_value)
+                    data[field.attname] = field.rel.to._meta.get_field(field.rel.field_name).to_python(field_value)
                 else:
                     data[field.attname] = None
 
