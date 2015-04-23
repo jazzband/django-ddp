@@ -12,6 +12,8 @@ from dddp import meteor_random_id
 @transaction.atomic
 def get_meteor_id(obj):
     """Return an Alea ID for the given object."""
+    if obj is None:
+        return None
     # Django model._meta is now public API -> pylint: disable=W0212
     meta = obj._meta
     obj_pk = str(obj.pk)
@@ -40,6 +42,14 @@ def get_object_id(model, meteor_id):
         content_type=content_type,
         meteor_id=meteor_id,
     ).values_list('object_id', flat=True).get()
+
+
+@transaction.atomic
+def get_object(model, meteor_id):
+    """Return an object for the given meteor_id."""
+    return model.objects.get(
+        pk=get_object_id(model, meteor_id),
+    )
 
 
 class AleaIdField(models.CharField):
