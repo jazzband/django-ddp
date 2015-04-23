@@ -5,6 +5,7 @@ from pkg_resources import get_distribution, DistributionNotFound
 from gevent.local import local
 from dddp import alea
 
+
 try:
     _dist = get_distribution('django-ddp')
     if not __file__.startswith(os.path.join(_dist.location, 'django-ddp', '')):
@@ -16,6 +17,18 @@ else:
     __version__ = _dist.version
 
 default_app_config = 'dddp.apps.DjangoDDPConfig'
+
+
+def greenify():
+    """Patch threading and psycopg2 modules for green threads."""
+    if 'threading' in sys.modules:
+        raise Exception('threading module loaded before patching!')
+
+    from gevent.monkey import patch_all
+    patch_all()
+
+    from psycogreen.gevent import patch_psycopg
+    patch_psycopg()
 
 
 class AlreadyRegistered(Exception):

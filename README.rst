@@ -18,7 +18,7 @@ Peer servers subscribe to aggregate broadcast events only for channels (Django m
 
 Limitations
 -----------
-The 0.2.x release series only supports DDP via WebSockets_.  Future
+The 0.3.x release series only supports DDP via WebSockets_.  Future
 development may resolve this by using SockJS, to support browsers that
 don't have WebSockets.
 

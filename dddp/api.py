@@ -473,7 +473,7 @@ class DDP(APIMixin):
                 this.send_msg(payload)
         this.send_msg({'msg': 'ready', 'subs': [id_]})
 
-    def unsub_notify(self, id_, names):
+    def unsub_notify(self, id_):
         """Dispatch DDP updates to connections."""
         (ws, _) = self._subs.pop(id_, (None, []))
         if ws is not None:
@@ -538,8 +538,8 @@ class DDP(APIMixin):
         """Return schema for all registered collections."""
         res = {}
         for api_provider in self.api_providers:
-            if issubclass(api_provider, Collection):
-                collection = api_provider()
+            if isinstance(api_provider, Collection):
+                collection = api_provider
                 res[collection_name(collection.model)] = collection.schema()
         return res
 
