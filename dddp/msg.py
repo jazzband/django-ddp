@@ -1,17 +1,13 @@
 """Django DDP utils for DDP messaging."""
 from dddp import THREAD_LOCAL as this
-from django.core.serializers import get_serializer
-
-
-def serializer_factory():
-    """Make a new DDP serializer."""
-    return get_serializer('ddp')()
 
 
 def obj_change_as_msg(obj, msg):
     """Generate a DDP msg for obj with specified msg type."""
-    serializer = this.get('serializer', serializer_factory)
+    serializer = this.serializer
     data = serializer.serialize([obj])[0]
+
+    # collection name is <app>.<model>
     name = data['model']
 
     # cast ID as string
