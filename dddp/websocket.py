@@ -123,7 +123,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         this.send_msg = self.send_msg
         this.reply = self.reply
         this.error = self.error
-        this.session_key = this.request.session.session_key
+        this.request.session.save()
 
         this.remote_addr = self.remote_addr = \
             '{0[REMOTE_ADDR]}:{0[REMOTE_PORT]}'.format(
@@ -280,7 +280,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             this.version = version
             this.support = support
             self.connection = Connection.objects.create(
-                session_id=this.session_key,
+                session_id=this.request.session.session_key,
                 server_addr='%d:%s' % (
                     backend_pid,
                     self.ws.handler.socket.getsockname(),

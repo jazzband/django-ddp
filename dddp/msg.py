@@ -1,17 +1,28 @@
 """Django DDP utils for DDP messaging."""
+from copy import deepcopy
 from dddp import THREAD_LOCAL as this
-from django.core.serializers import get_serializer
-
-
-def serializer_factory():
-    """Make a new DDP serializer."""
-    return get_serializer('ddp')()
+from django.db.models.expressions import ExpressionNode
 
 
 def obj_change_as_msg(obj, msg):
     """Generate a DDP msg for obj with specified msg type."""
-    serializer = this.get('serializer', serializer_factory)
+    # check for F expressions
+    exps = [
+        name for name, val in vars(obj).items()
+        if isinstance(val, ExpressionNode)
+    ]
+    if exps:
+        # clone and update obj with values but only for the expression fields
+        obj = deepcopy(obj)
+        # Django 1.8 makes obj._meta public --> pylint: disable=W0212
+        for name, val in obj._meta.model.objects.values(*exps).get(pk=obj.pk):
+            setattr(obj, name, val)
+
+    # run serialization now that all fields are "concrete" (not F expressions)
+    serializer = this.serializer
     data = serializer.serialize([obj])[0]
+
+    # collection name is <app>.<model>
     name = data['model']
 
     # cast ID as string

@@ -1,6 +1,7 @@
 """Django/PostgreSQL implementation of the Meteor DDP service."""
 from __future__ import unicode_literals
 import os.path
+import sys
 from pkg_resources import get_distribution, DistributionNotFound
 from gevent.local import local
 from dddp import alea
@@ -89,9 +90,16 @@ class RandomStreams(object):
         return self._streams[key]
 
 
+def serializer_factory():
+    """Make a new DDP serializer."""
+    from django.core.serializers import get_serializer
+    return get_serializer('ddp')()
+
+
 THREAD_LOCAL = ThreadLocal(
     alea_random=alea.Alea,
     random_streams=RandomStreams,
+    serializer=serializer_factory,
 )
 METEOR_ID_CHARS = u'23456789ABCDEFGHJKLMNPQRSTWXYZabcdefghijkmnopqrstuvwxyz'
 

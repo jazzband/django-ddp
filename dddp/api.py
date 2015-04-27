@@ -191,6 +191,8 @@ class Collection(APIMixin):
         qs = self.get_queryset(qs)
         user_rels = self.user_rel
         if user_rels:
+            if user is None:
+                return qs.none()  # no user but we need one: return no objects.
             if isinstance(user_rels, basestring):
                 user_rels = [user_rels]
             user_filter = None
@@ -399,9 +401,9 @@ class DDP(APIMixin):
             this.error('Invalid publication name: %r' % name)
             return
         obj, created = Subscription.objects.get_or_create(
-            connection=this.ws.connection,
+            connection_id=this.ws.connection.pk,
             sub_id=id_,
-            user=this.request.user,
+            user_id=this.request.user.pk,
             defaults={
                 'publication': pub.name,
                 'publication_class': '%s.%s' % (
