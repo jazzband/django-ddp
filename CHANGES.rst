@@ -1,6 +1,19 @@
 Change Log
 ==========
 
+0.4.0
+-----
+* Make live updates honour user_rel restrictions, also allow superusers 
+  to see everything.
+* Support serializing objects that are saved with F expressions by 
+  reading field values for F expressions from database explicitly before 
+  serializing.
+* Allow `fresh` connections from browsers that have not established a 
+  session in the database yet, also allow subscriptions from 
+  unauthenticated sessions (but don't show any data for collections that
+  have user_rel items defined).  This change includes a schema change, 
+  remember to run migrations after updating.
+
 0.3.0
 -----
 * New DB field: Connection.server_addr -- **you must `migrate` your 
