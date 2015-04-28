@@ -22,6 +22,7 @@ _CLS_CACHE = ImportCache()
 
 def send_notify(model, obj, msg, using):
     """Dispatch PostgreSQL async NOTIFY."""
+    user_cache = {}
     col_name = collection_name(model)
     if col_name == 'migrations.migration':
         return  # never send migration models.
@@ -44,6 +45,18 @@ def send_notify(model, obj, msg, using):
             qs = pub_queries[sub_col.name]
             col = _CLS_CACHE[sub_col.collection_class]()
             # filter qs using user_rel paths on collection
+            try:
+                user_ids = user_cache[sub_col.collection_class]
+            except KeyError:
+                user_ids = user_cache.setdefault(
+                    sub_col.collection_class, col.user_ids_for_object(obj)
+                )
+
+            if user_ids is None:
+                pass  # unrestricted collection, anyone can see.
+            elif sub.user_id not in user_ids:
+                continue  # not for this user
+
             qs = col.get_queryset(qs)
             if qs.filter(pk=obj.pk).exists():
                 sub_ids.add(sub.sub_id)

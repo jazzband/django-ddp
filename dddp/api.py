@@ -4,6 +4,7 @@ import collections
 import traceback
 import dbarray
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db import connection, transaction
 from django.db.models import aggregates, Q
 from django.db.models.sql import aggregates as sql_aggregates
@@ -191,6 +192,8 @@ class Collection(APIMixin):
         qs = self.get_queryset(qs)
         user_rels = self.user_rel
         if user_rels:
+            if user is None:
+                return qs.none()  # no user but we need one: return no objects.
             if isinstance(user_rels, basestring):
                 user_rels = [user_rels]
             user_filter = None
@@ -208,7 +211,7 @@ class Collection(APIMixin):
             )
         return qs
 
-    def user_ids_for_object(self, obj, base_qs=None):
+    def user_ids_for_object(self, obj, base_qs=None, include_superusers=True):
         """Find user IDs related to object/pk in queryset."""
         qs = base_qs or self.queryset
         if self.user_rel:
@@ -220,12 +223,21 @@ class Collection(APIMixin):
                 for index, user_rel
                 in enumerate(user_rels)
             }
+
             user_ids = set()
+            if include_superusers:
+                user_ids.update(
+                    get_user_model().objects.filter(
+                        is_superuser=True, is_active=True,
+                    ).values_list('pk', flat=True)
+                )
+
             for rel_user_ids in qs.filter(
                     pk=hasattr(obj, 'pk') and obj.pk or obj,
             ).annotate(**user_rel_map).values_list(*user_rel_map.keys()).get():
                 user_ids.update(rel_user_ids)
-            return sorted(user_ids.difference([None]))
+            user_ids.difference_update([None])
+            return user_ids
         else:
             return None
 
@@ -388,7 +400,7 @@ class DDP(APIMixin):
     @api_endpoint
     def sub(self, id_, name, *params):
         """Create subscription, send matched objects that haven't been sent."""
-        return self._sub( id_, name, *params)
+        return self._sub(id_, name, *params)
 
     @transaction.atomic
     def _sub(self, id_, name, *params):
@@ -399,9 +411,9 @@ class DDP(APIMixin):
             this.error('Invalid publication name: %r' % name)
             return
         obj, created = Subscription.objects.get_or_create(
-            connection=this.ws.connection,
+            connection_id=this.ws.connection.pk,
             sub_id=id_,
-            user=this.request.user,
+            user_id=this.request.user.pk,
             defaults={
                 'publication': pub.name,
                 'publication_class': '%s.%s' % (
