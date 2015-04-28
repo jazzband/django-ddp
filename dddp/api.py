@@ -4,6 +4,7 @@ import collections
 import traceback
 import dbarray
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db import connection, transaction
 from django.db.models import aggregates, Q
 from django.db.models.sql import aggregates as sql_aggregates
@@ -210,7 +211,7 @@ class Collection(APIMixin):
             )
         return qs
 
-    def user_ids_for_object(self, obj, base_qs=None):
+    def user_ids_for_object(self, obj, base_qs=None, include_superusers=True):
         """Find user IDs related to object/pk in queryset."""
         qs = base_qs or self.queryset
         if self.user_rel:
@@ -222,12 +223,21 @@ class Collection(APIMixin):
                 for index, user_rel
                 in enumerate(user_rels)
             }
+
             user_ids = set()
+            if include_superusers:
+                user_ids.update(
+                    get_user_model().objects.filter(
+                        is_superuser=True, is_active=True,
+                    ).values_list('pk', flat=True)
+                )
+
             for rel_user_ids in qs.filter(
                     pk=hasattr(obj, 'pk') and obj.pk or obj,
             ).annotate(**user_rel_map).values_list(*user_rel_map.keys()).get():
                 user_ids.update(rel_user_ids)
-            return sorted(user_ids.difference([None]))
+            user_ids.difference_update([None])
+            return user_ids
         else:
             return None
 
@@ -390,7 +400,7 @@ class DDP(APIMixin):
     @api_endpoint
     def sub(self, id_, name, *params):
         """Create subscription, send matched objects that haven't been sent."""
-        return self._sub( id_, name, *params)
+        return self._sub(id_, name, *params)
 
     @transaction.atomic
     def _sub(self, id_, name, *params):
