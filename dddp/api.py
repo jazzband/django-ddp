@@ -5,7 +5,7 @@ import traceback
 import dbarray
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db import connection, transaction
+from django.db import connection
 from django.db.models import aggregates, Q
 from django.db.models.sql import aggregates as sql_aggregates
 from django.utils.encoding import force_text
@@ -399,11 +399,6 @@ class DDP(APIMixin):
 
     @api_endpoint
     def sub(self, id_, name, *params):
-        """Create subscription, send matched objects that haven't been sent."""
-        return self._sub(id_, name, *params)
-
-    @transaction.atomic
-    def _sub(self, id_, name, *params):
         """Create subscription, send matched objects that haven't been sent."""
         try:
             pub = self._registry[pub_path(name)]
