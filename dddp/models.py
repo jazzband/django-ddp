@@ -105,24 +105,14 @@ class Connection(models.Model, object):
 
     """Django DDP connection instance."""
 
-    session = models.ForeignKey('sessions.Session')
     connection_id = AleaIdField()
     server_addr = models.CharField(max_length=255)
     remote_addr = models.CharField(max_length=255)
     version = models.CharField(max_length=255)
 
-    class Meta(object):
-
-        """Connection model meta."""
-
-        unique_together = [
-            ['connection_id', 'session'],
-        ]
-
     def __str__(self):
         """Text representation of subscription."""
-        return u'%s/\u200b%s/\u200b%s' % (
-            self.session_id,
+        return u'%s/\u200b%s' % (
             self.connection_id,
             self.remote_addr,
         )
@@ -131,7 +121,7 @@ class Connection(models.Model, object):
 @python_2_unicode_compatible
 class Subscription(models.Model, object):
 
-    """Session subscription to a publication with params."""
+    """Subscription to a publication with params."""
 
     _publication_cache = {}
     connection = models.ForeignKey(Connection)

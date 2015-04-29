@@ -145,7 +145,6 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             self.connection = None
         self.logger.info('- %s %s', self, reason or 'CLOSE')
 
-    @transaction.atomic
     def on_message(self, message):
         """Process a message received from remote."""
         if self.ws.closed:
@@ -192,6 +191,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         except MeteorError, err:
             self.error(err)
 
+    @transaction.atomic
     def dispatch(self, msg, kwargs):
         """Dispatch msg to appropriate recv_foo handler."""
         # enforce calling 'connect' first
@@ -280,7 +280,6 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             this.version = version
             this.support = support
             self.connection = Connection.objects.create(
-                session_id=this.request.session.session_key,
                 server_addr='%d:%s' % (
                     backend_pid,
                     self.ws.handler.socket.getsockname(),
