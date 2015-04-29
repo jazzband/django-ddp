@@ -283,6 +283,12 @@ class Collection(APIMixin):
             choices = getattr(field, 'choices', None)
             if choices:
                 schema['allowedValues'] = [val for val, _ in choices]
+                schema['autoform'] = {
+                    'options': [
+                        {'label': desc, 'value': val}
+                        for val, desc in choices
+                    ],
+                }
 
             blank = getattr(field, 'blank', None)
             if blank:
