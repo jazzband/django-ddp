@@ -33,7 +33,7 @@ def validate_kwargs(func, kwargs):
     defaults = list(argspec.defaults or [])
 
     # ignore implicit 'self' argument
-    if inspect.ismethod(func) and all_args[0] == 'self':
+    if inspect.ismethod(func) and all_args[:1] == ['self']:
         all_args[:1] = []
 
     # don't require arguments that have defaults
