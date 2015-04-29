@@ -97,7 +97,9 @@ class APIMeta(type):
         if name_format:
             attrs['name'] = name_format.format(**attrs)
         api_path_prefix_format = attrs.get('api_path_prefix_format', None)
-        if api_path_prefix_format is not None:
+        if attrs.get('api_path_prefix', None) is not None:
+            pass
+        elif api_path_prefix_format is not None:
             attrs['api_path_prefix'] = api_path_prefix_format.format(**attrs)
         return super(APIMeta, mcs).__new__(mcs, name, bases, attrs)
 
@@ -153,7 +155,7 @@ class CollectionMeta(APIMeta):
             api_path_prefix_format=COLLECTION_PATH_FORMAT,
         )
         model = attrs.get('model', None)
-        if model is not None:
+        if attrs.get('name', None) is None and model is not None:
             attrs.update(
                 name=collection_name(model),
             )
@@ -362,7 +364,7 @@ class Publication(APIMixin):
         """Return list of collections for this publication."""
         return sorted(
             set(
-                collection_name(qs.model)
+                hasattr(qs, 'model') and collection_name(qs.model) or qs[1]
                 for qs
                 in self.get_queries(*params)
             )
@@ -403,6 +405,17 @@ class DDP(APIMixin):
         ws, _ = self._subs[id_]
         ws.send_msg(data)
 
+    def qs_and_collection(self, qs):
+        """Return (qs, collection) from qs (which may be a tuple)."""
+        if hasattr(qs, 'model'):
+            return (qs, self.get_collection(qs.model))
+        elif isinstance(qs, (list, tuple)):
+            name = qs[1]
+            path = COLLECTION_PATH_FORMAT.format(name=name)
+            return (qs[0], self._registry[path])
+        else:
+            raise TypeError('Invalid query spec: %r' % qs)
+
     @api_endpoint
     def sub(self, id_, name, *params):
         """Create subscription, send matched objects that haven't been sent."""
@@ -430,10 +443,10 @@ class DDP(APIMixin):
         # re-read from DB so we can get transaction ID (xmin)
         obj = Subscription.objects.extra(**XMIN).get(pk=obj.pk)
         queries = {
-            collection_name(collection.model): (collection, qs)
+            collection.name: (collection, qs)
             for (qs, collection)
             in (
-                (qs, self.get_collection(qs.model))
+                self.qs_and_collection(qs)
                 for qs
                 in pub.get_queries(*params)
             )
@@ -456,7 +469,7 @@ class DDP(APIMixin):
         )
         for name, (collection, qs) in queries.items():
             obj.collections.create(
-                name=name,
+                name=collection_name(qs.model),
                 collection_class='%s.%s' % (
                     collection.__class__.__module__,
                     collection.__class__.__name__,
@@ -470,7 +483,7 @@ class DDP(APIMixin):
         ).order_by('pk').distinct():
             other_pub = self._registry[pub_path(other.publication)]
             for qs in other_pub.get_queries(*other.params):
-                collection = self.get_collection(qs.model)
+                qs, collection = self.qs_and_collection(qs)
                 if collection.name not in to_send:
                     continue
                 to_send[collection.name] = to_send[collection.name].exclude(
