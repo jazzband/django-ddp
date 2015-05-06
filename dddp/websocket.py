@@ -15,7 +15,6 @@ from django.core.handlers.wsgi import WSGIRequest
 from django.db import connection, transaction
 
 from dddp import THREAD_LOCAL as this, alea
-from dddp.api import API
 
 
 class MeteorError(Exception):
@@ -33,7 +32,7 @@ def validate_kwargs(func, kwargs):
     defaults = list(argspec.defaults or [])
 
     # ignore implicit 'self' argument
-    if inspect.ismethod(func) and all_args[0] == 'self':
+    if inspect.ismethod(func) and all_args[:1] == ['self']:
         all_args[:1] = []
 
     # don't require arguments that have defaults
@@ -95,6 +94,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         'pre1',
         'pre2',
     ]
+    api = None
     logger = None
     pgworker = None
     remote_addr = None
@@ -145,7 +145,6 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             self.connection = None
         self.logger.info('- %s %s', self, reason or 'CLOSE')
 
-    @transaction.atomic
     def on_message(self, message):
         """Process a message received from remote."""
         if self.ws.closed:
@@ -192,6 +191,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         except MeteorError, err:
             self.error(err)
 
+    @transaction.atomic
     def dispatch(self, msg, kwargs):
         """Dispatch msg to appropriate recv_foo handler."""
         # enforce calling 'connect' first
@@ -280,7 +280,6 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             this.version = version
             this.support = support
             self.connection = Connection.objects.create(
-                session_id=this.request.session.session_key,
                 server_addr='%d:%s' % (
                     backend_pid,
                     self.ws.handler.socket.getsockname(),
@@ -304,13 +303,13 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
 
     def recv_sub(self, id_, name, params):
         """DDP sub handler."""
-        API.sub(id_, name, *params)
+        self.api.sub(id_, name, *params)
     recv_sub.err = 'Malformed subscription'
 
     def recv_unsub(self, id_=None):
         """DDP unsub handler."""
         if id_:
-            API.unsub(id_)
+            self.api.unsub(id_)
         else:
             self.reply('nosub')
 
@@ -319,6 +318,6 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         if randomSeed is not None:
             this.random_streams.random_seed = randomSeed
             this.alea_random = alea.Alea(randomSeed)
-        API.method(method, params, id_)
+        self.api.method(method, params, id_)
         self.reply('updated', methods=[id_])
     recv_method.err = 'Malformed method invocation'

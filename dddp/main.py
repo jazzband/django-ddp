@@ -62,9 +62,9 @@ def ddpp_sockjs_info(environ, start_response):
 def serve(listen, debug=False):
     """Spawn greenlets for handling websockets and PostgreSQL calls."""
     import signal
+    from django.apps import apps
     from django.db import connection, close_old_connections
     from django.utils.module_loading import import_string
-    from dddp import autodiscover
     from dddp.postgres import PostgresGreenlet
     from dddp.websocket import DDPWebSocketApplication
     import gevent
@@ -74,8 +74,8 @@ def serve(listen, debug=False):
     close_old_connections()
 
     # setup PostgresGreenlet to multiplex DB calls
-    postgres = PostgresGreenlet(connection, debug=debug)
-    DDPWebSocketApplication.pgworker = postgres
+    pgworker = PostgresGreenlet(connection, debug=debug)
+    DDPWebSocketApplication.pgworker = pgworker
 
     # use settings.WSGI_APPLICATION or fallback to default Django WSGI app
     from django.conf import settings
@@ -108,7 +108,7 @@ def serve(listen, debug=False):
 
     def killall(*args, **kwargs):
         """Kill all green threads."""
-        postgres.stop()
+        pgworker.stop()
         for webserver in webservers:
             webserver.stop()
 
@@ -117,18 +117,19 @@ def serve(listen, debug=False):
     gevent.signal(signal.SIGQUIT, killall)
 
     print('=> Discovering DDP endpoints...')
-    ddp = autodiscover()
-    ddp.pgworker = postgres
+    api = apps.get_app_config('dddp').api
+    api.pgworker = pgworker
+    DDPWebSocketApplication.api = api
     print(
         '\n'.join(
             '    %s' % api_path
             for api_path
-            in sorted(ddp.api_path_map())
+            in sorted(api.api_path_map())
         ),
     )
 
     # start greenlets
-    postgres.start()
+    pgworker.start()
     print('=> Started PostgresGreenlet.')
     web_threads = [
         gevent.spawn(webserver.serve_forever)
@@ -141,8 +142,8 @@ def serve(listen, debug=False):
     for host, port in listen:
         print('=> App running at: http://%s:%d/' % (host, port))
     gevent.joinall(web_threads)
-    postgres.stop()
-    gevent.joinall([postgres])
+    pgworker.stop()
+    gevent.joinall([pgworker])
 
 
 def addr(val, default_port=8000, defualt_host='localhost'):

@@ -53,11 +53,12 @@ class ObjectMapping(admin.ModelAdmin):
 class SubscriptionCollectionInline(admin.TabularInline):
     model = models.SubscriptionCollection
     fields = [
-        'collection_class',
+        'model_name',
+        'collection_name',
     ]
     readonly_fields = [
-        'name',
-        'collection_class',
+        'model_name',
+        'collection_name',
     ]
     max_num = 0
 
@@ -87,17 +88,18 @@ class Subscription(admin.ModelAdmin):
 
 class SubscriptionCollection(admin.ModelAdmin):
     search_fields = [
-        'name',
-        'collection_class',
+        'model_name',
+        'collection_name',
     ]
     list_display = [
         '__str__',
         'subscription',
-        'name',
-        'collection_class',
+        'model_name',
+        'collection_name',
     ]
     list_filter = [
-        'name',
+        'model_name',
+        'collection_name',
     ]
 
 

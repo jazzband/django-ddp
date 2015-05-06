@@ -1,7 +1,7 @@
 django-ddp
 ==========
 
-Django_/PostgreSQL_ implementation of the Meteor DDP service, allowing Meteor_ to subscribe to changes on Django_ models.
+Django_/PostgreSQL_ implementation of the Meteor DDP service, allowing Meteor_ to subscribe to changes on Django_ models.  Released under the MIT license.
 
 
 Requirements
@@ -126,7 +126,7 @@ Contributors
     * Author, conceptual design.
 
 `MEERQAT <http://meerqat.com.au/>`_
-    * Project sponsor - many thanks for allowing this to be released under the BSD license!
+    * Project sponsor - many thanks for allowing this to be released under an open source license!
 
 `David Burles <https://github.com/dburles>`_
     * Expert guidance on how DDP works in Meteor.
