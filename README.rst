@@ -126,7 +126,7 @@ Contributors
     * Author, conceptual design.
 
 `MEERQAT <http://meerqat.com.au/>`_
-    * Project sponsor - many thanks for allowing this to be released under the BSD license!
+    * Project sponsor - many thanks for allowing this to be released under an open source license!
 
 `David Burles <https://github.com/dburles>`_
     * Expert guidance on how DDP works in Meteor.
