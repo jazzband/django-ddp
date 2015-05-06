@@ -128,7 +128,6 @@ class Subscription(models.Model, object):
     sub_id = models.CharField(max_length=17)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, blank=True, null=True)
     publication = models.CharField(max_length=255)
-    publication_class = models.CharField(max_length=255)
     params_ejson = models.TextField(default='{}')
 
     class Meta(object):
@@ -166,11 +165,13 @@ class SubscriptionCollection(models.Model):
     """Collections for a subscription."""
 
     subscription = models.ForeignKey(Subscription, related_name='collections')
-    name = models.CharField(max_length=255)
-    collection_class = models.CharField(max_length=255)
+    model_name = models.CharField(max_length=255)
+    collection_name = models.CharField(max_length=255)
 
     def __str__(self):
         """Human readable representation of colleciton for a subscription."""
-        return '%s' % (
-            self.name,
+        return u'%s \u200b %s (%s)' % (
+            self.subscription,
+            self.collection_name,
+            self.model_name,
         )

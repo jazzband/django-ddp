@@ -1,18 +1,32 @@
 """Django DDP API, Collections, Cursors and Publications."""
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals
+
+# standard library
 import collections
+from copy import deepcopy
+import heapq
+import itertools
+import sys
 import traceback
+
+from six.moves import range
+
+# requirements
 import dbarray
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.db import connection
+from django.db import connection, connections
 from django.db.models import aggregates, Q
+from django.db.models.expressions import ExpressionNode
 from django.db.models.sql import aggregates as sql_aggregates
 from django.utils.encoding import force_text
-from dddp import AlreadyRegistered, THREAD_LOCAL as this
-from dddp.models import Subscription
-from dddp.msg import obj_change_as_msg
+from django.db import DatabaseError
+from django.db.models import signals
 import ejson
+
+# django-ddp
+from dddp import AlreadyRegistered, THREAD_LOCAL as this
+from dddp.models import Connection, Subscription, get_meteor_id
 
 
 XMIN = {'select': {'xmin': "'xmin'"}}
@@ -136,8 +150,8 @@ class APIMixin(object):
         return self.api_path_map()[api_path]
 
 
-def collection_name(model):
-    """Return collection name given model class."""
+def model_name(model):
+    """Return model name given model class."""
     # Django supports model._meta -> pylint: disable=W0212
     return force_text(model._meta)
 
@@ -157,7 +171,7 @@ class CollectionMeta(APIMeta):
         model = attrs.get('model', None)
         if attrs.get('name', None) is None and model is not None:
             attrs.update(
-                name=collection_name(model),
+                name=model_name(model),
             )
         return super(CollectionMeta, mcs).__new__(mcs, name, bases, attrs)
 
@@ -279,7 +293,7 @@ class Collection(APIMixin):
                 schema['type'] = 'String'
                 schema['relation'] = {
                     'name': field.name,
-                    'collection': collection_name(rel.to),
+                    'collection': model_name(rel.to),
                 }
 
             choices = getattr(field, 'choices', None)
@@ -314,7 +328,7 @@ class Collection(APIMixin):
                 'type': '[String]',
                 'relation': {
                     'name': field.name,
-                    'collection': collection_name(field.rel.to),
+                    'collection': model_name(field.rel.to),
                 },
             }
 
@@ -327,6 +341,35 @@ class Collection(APIMixin):
             in self.field_schema()
         }
 
+    def serialize(self, obj):
+        """Generate a DDP msg for obj with specified msg type."""
+        # check for F expressions
+        exps = [
+            name for name, val in vars(obj).items()
+            if isinstance(val, ExpressionNode)
+        ]
+        if exps:
+            # clone/update obj with values but only for the expression fields
+            obj = deepcopy(obj)
+            for name, val in self.model.objects.values(*exps).get(pk=obj.pk):
+                setattr(obj, name, val)
+
+        # run serialization now all fields are "concrete" (not F expressions)
+        return this.serializer.serialize([obj])[0]
+
+    def obj_change_as_msg(self, obj, msg):
+        """Return DDP change message of specified type (msg) for obj."""
+        if msg == 'removed':
+            data = {'pk': get_meteor_id(obj)}  # `removed` only needs ID
+        elif msg in ('added', 'changed'):
+            data = self.serialize(obj)
+            data['id'] = str(data.pop('pk'))  # force casting ID as string
+        else:
+            raise ValueError('Invalid message type: %r' % msg)
+
+        data.update(msg=msg, collection=self.name)
+        return data
+
 
 class PublicationMeta(APIMeta):
 
@@ -335,7 +378,7 @@ class PublicationMeta(APIMeta):
     def __new__(mcs, name, bases, attrs):
         """Create a new Publication class."""
         attrs.update(
-            api_path_prefix_format='publications/{name}/',
+            api_path_prefix_format='publication/{name}/',
         )
         return super(PublicationMeta, mcs).__new__(mcs, name, bases, attrs)
 
@@ -357,14 +400,14 @@ class Publication(APIMixin):
                     self.name,
                 ),
             )
-        return self.queries[:] or []
+        return self.queries[:]
 
     @api_endpoint
     def collections(self, *params):
         """Return list of collections for this publication."""
         return sorted(
             set(
-                hasattr(qs, 'model') and collection_name(qs.model) or qs[1]
+                hasattr(qs, 'model') and model_name(qs.model) or qs[1]
                 for qs
                 in self.get_queries(*params)
             )
@@ -376,6 +419,8 @@ def pub_path(publication_name):
     return Publication.api_path_prefix_format.format(name=publication_name)
 
 
+
+
 class DDP(APIMixin):
 
     """Django DDP API."""
@@ -383,17 +428,36 @@ class DDP(APIMixin):
     __metaclass__ = APIMeta
 
     pgworker = None
+    _in_migration = False
+
+    class Msg(object):
+
+        """DDP message type enumeration."""
+
+        ADDED = 'added'
+        CHANGED = 'changed'
+        REMOVED = 'removed'
 
     def __init__(self):
         """DDP API init."""
         self._registry = {}
         self._subs = {}
+        # self._tx_buffer collects outgoing messages which must be sent in order
+        self._tx_buffer = []
+        # track the head of the queue (buffer) and the next msg to be sent
+        self._tx_buffer_id_gen = itertools.repeat(range(sys.maxint))
+        self._tx_next_id_gen = itertools.repeat(range(sys.maxint))
+        # start by waiting for the very first message
+        self._tx_next_id = self._tx_next_id_gen.next()
 
     def get_collection(self, model):
         """Return collection instance for given model."""
-        name = collection_name(model)
-        path = COLLECTION_PATH_FORMAT.format(name=name)
-        return self._registry[path]
+        name = model_name(model)
+        return self.get_col_by_name(name)
+
+    def get_col_by_name(self, name):
+        """Return collection instance for given name."""
+        return self._registry[COLLECTION_PATH_FORMAT.format(name=name)]
 
     @property
     def api_providers(self):
@@ -410,9 +474,7 @@ class DDP(APIMixin):
         if hasattr(qs, 'model'):
             return (qs, self.get_collection(qs.model))
         elif isinstance(qs, (list, tuple)):
-            name = qs[1]
-            path = COLLECTION_PATH_FORMAT.format(name=name)
-            return (qs[0], self._registry[path])
+            return (qs[0], self.get_col_by_name(qs[1]))
         else:
             raise TypeError('Invalid query spec: %r' % qs)
 
@@ -430,10 +492,6 @@ class DDP(APIMixin):
             user_id=this.request.user.pk,
             defaults={
                 'publication': pub.name,
-                'publication_class': '%s.%s' % (
-                    pub.__class__.__module__,
-                    pub.__class__.__name__,
-                ),
                 'params_ejson': ejson.dumps(params),
             },
         )
@@ -442,15 +500,15 @@ class DDP(APIMixin):
             return
         # re-read from DB so we can get transaction ID (xmin)
         obj = Subscription.objects.extra(**XMIN).get(pk=obj.pk)
-        queries = {
-            collection.name: (collection, qs)
-            for (qs, collection)
+        queries = collections.OrderedDict(
+            (col.name, (col, qs))
+            for (qs, col)
             in (
                 self.qs_and_collection(qs)
                 for qs
                 in pub.get_queries(*params)
             )
-        }
+        )
         self._subs[id_] = (this.ws, sorted(queries))
         self.pgworker.subscribe(self.sub_notify, id_, sorted(queries))
         # mergebox via MVCC!  For details on how this is possible, read this:
@@ -458,44 +516,42 @@ class DDP(APIMixin):
         to_send = collections.OrderedDict(
             (
                 name,
-                collection.objects_for_user(
+                col.objects_for_user(
                     user=this.request.user.pk,
                     qs=qs,
                     xmin__lte=obj.xmin,
                 ),
             )
-            for name, (collection, qs)
+            for name, (col, qs)
             in queries.items()
         )
-        for name, (collection, qs) in queries.items():
+        for name, (col, qs) in queries.items():
             obj.collections.create(
-                name=collection_name(qs.model),
-                collection_class='%s.%s' % (
-                    collection.__class__.__module__,
-                    collection.__class__.__name__,
-                ),
+                model_name=model_name(qs.model),
+                collection_name=name,
             )
         for other in Subscription.objects.filter(
                 connection=this.ws.connection,
-                collections__name__in=queries.keys(),
+                collections__collection_name__in=queries.keys(),
         ).exclude(
             pk=obj.pk,
         ).order_by('pk').distinct():
             other_pub = self._registry[pub_path(other.publication)]
             for qs in other_pub.get_queries(*other.params):
-                qs, collection = self.qs_and_collection(qs)
-                if collection.name not in to_send:
+                qs, col = self.qs_and_collection(qs)
+                if col not in to_send:
                     continue
-                to_send[collection.name] = to_send[collection.name].exclude(
-                    pk__in=collection.objects_for_user(
+                to_send[col] = to_send[col.name].exclude(
+                    pk__in=col.objects_for_user(
                         user=this.request.user.pk,
                         qs=qs,
                         xmin__lte=obj.xmin,
                     ).values('pk'),
                 )
-        for qs in to_send.values():
+        for collection_name, qs in to_send.items():
+            col = self.get_col_by_name(collection_name)
             for obj in qs:
-                name, payload = obj_change_as_msg(obj, 'added')
+                payload = col.obj_change_as_msg(obj, self.Msg.ADDED)
                 this.send_msg(payload)
         this.send_msg({'msg': 'ready', 'subs': [id_]})
 
@@ -566,8 +622,132 @@ class DDP(APIMixin):
         for api_provider in self.api_providers:
             if isinstance(api_provider, Collection):
                 collection = api_provider
-                res[collection_name(collection.model)] = collection.schema()
+                res[model_name(collection.model)] = collection.schema()
         return res
+
+    def ready(self):
+        """Initialisation for django-ddp (setup lookups and signal handlers)."""
+        signals.post_save.connect(self.on_save)
+        signals.post_delete.connect(self.on_delete)
+        signals.m2m_changed.connect(self.on_m2m_changed)
+        signals.post_migrate.connect(self.on_post_migrate)
+
+    def on_save(self, sender, **kwargs):
+        """Post-save signal handler."""
+        if self._in_migration:
+            return
+        self.send_notify(
+            model=sender,
+            obj=kwargs['instance'],
+            msg=kwargs['created'] and self.Msg.ADDED or self.Msg.CHANGED,
+            using=kwargs['using'],
+        )
+
+    def on_delete(self, sender, **kwargs):
+        """Post-delete signal handler."""
+        if self._in_migration:
+            return
+        self.send_notify(
+            model=sender,
+            obj=kwargs['instance'],
+            msg='removed',
+            using=kwargs['using'],
+        )
+
+    def on_m2m_changed(self, sender, **kwargs):
+        """M2M-changed signal handler."""
+        if self._in_migration:
+            return
+        # See https://docs.djangoproject.com/en/1.7/ref/signals/#m2m-changed
+        if kwargs['action'] in (
+                'post_add',
+                'post_remove',
+                'post_clear',
+        ):
+            if kwargs['reverse'] is False:
+                objs = [kwargs['instance']]
+                model = objs[0].__class__
+            else:
+                model = kwargs['model']
+                objs = model.objects.filter(pk__in=kwargs['pk_set'])
+
+            for obj in objs:
+                self.send_notify(
+                    model=model,
+                    obj=obj,
+                    msg='changed',
+                    using=kwargs['using'],
+                )
+
+    def on_pre_migrate(self, sender, **kwargs):
+        """Pre-migrate signal handler."""
+        self._in_migration = True
+
+    def on_post_migrate(self, sender, **kwargs):
+        """Post-migrate signal handler."""
+        self._in_migration = False
+        try:
+            Connection.objects.all().delete()
+        except DatabaseError:  # pylint: disable=E0712
+            pass
+
+    def send_notify(self, model, obj, msg, using):
+        """Dispatch PostgreSQL async NOTIFY."""
+        col_user_ids = {}
+        mod_name = model_name(model)
+        if mod_name.split('.', 1)[0] in ('migrations', 'dddp'):
+            return  # never send migration or DDP internal models
+        col_sub_ids = collections.defaultdict(set)
+        for sub in Subscription.objects.filter(
+                collections__model_name=mod_name,
+        ).prefetch_related('collections'):
+            for qs, col in (
+                    self.qs_and_collection(qs)
+                    for qs
+                    in self._registry[
+                        'publication/%s/' % sub.publication
+                    ].get_queries(*sub.params)
+            ):
+                # check if obj is an instance of the model for the queryset
+                if qs.model is not model:
+                    continue  # wrong model on queryset
+
+                # check if obj is included in this subscription
+                if not qs.filter(pk=obj.pk).exists():
+                    continue  # subscription doesn't include this obj
+
+                # filter qs using user_rel paths on collection
+                # retreieve list of allowed users via colleciton
+                try:
+                    user_ids = col_user_ids[col.__class__]
+                except KeyError:
+                    user_ids = col_user_ids[col.__class__] = \
+                        col.user_ids_for_object(obj)
+                if user_ids is None:
+                    pass  # unrestricted collection, anyone permitted to see.
+
+                # check if user is in permitted list of users
+                if user_ids is not None:
+                    pass  # unrestricted collection, anyone permitted to see.
+                elif sub.user_id in user_ids:
+                    continue  # not for this user
+
+                col_sub_ids[col].add(sub.sub_id)
+
+        if not col_sub_ids:
+            get_meteor_id(obj)  # force creation of meteor ID using randomSeed
+            return  # no subscribers for this object, nothing more to do.
+
+        for col, sub_ids in col_sub_ids.items():
+            payload = col.obj_change_as_msg(obj, msg)
+            payload['_sub_ids'] = sorted(sub_ids)
+            cursor = connections[using].cursor()
+            cursor.execute(
+                'NOTIFY "%s", %%s' % col.name,
+                [
+                    ejson.dumps(payload),
+                ],
+            )
 
 
 API = DDP()
