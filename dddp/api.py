@@ -4,12 +4,7 @@ from __future__ import absolute_import, unicode_literals
 # standard library
 import collections
 from copy import deepcopy
-import heapq
-import itertools
-import sys
 import traceback
-
-from six.moves import range
 
 # requirements
 import dbarray
@@ -419,8 +414,6 @@ def pub_path(publication_name):
     return Publication.api_path_prefix_format.format(name=publication_name)
 
 
-
-
 class DDP(APIMixin):
 
     """Django DDP API."""
@@ -442,13 +435,6 @@ class DDP(APIMixin):
         """DDP API init."""
         self._registry = {}
         self._subs = {}
-        # self._tx_buffer collects outgoing messages which must be sent in order
-        self._tx_buffer = []
-        # track the head of the queue (buffer) and the next msg to be sent
-        self._tx_buffer_id_gen = itertools.repeat(range(sys.maxint))
-        self._tx_next_id_gen = itertools.repeat(range(sys.maxint))
-        # start by waiting for the very first message
-        self._tx_next_id = self._tx_next_id_gen.next()
 
     def get_collection(self, model):
         """Return collection instance for given model."""
@@ -467,7 +453,15 @@ class DDP(APIMixin):
     def sub_notify(self, id_, names, data):
         """Dispatch DDP updates to connections."""
         ws, _ = self._subs[id_]
-        ws.send_msg(data)
+        connection_pk = data.pop('_sender', None)
+        tx_id = data.pop('_tx_id', None)
+        connection = getattr(ws, 'connection', None)
+        if connection is None:
+            tx_id = None
+        else:
+            if connection.pk != connection_pk:
+                tx_id = None
+        ws.send_msg(data, tx_id=tx_id)
 
     def qs_and_collection(self, qs):
         """Return (qs, collection) from qs (which may be a tuple)."""
@@ -741,6 +735,12 @@ class DDP(APIMixin):
         for col, sub_ids in col_sub_ids.items():
             payload = col.obj_change_as_msg(obj, msg)
             payload['_sub_ids'] = sorted(sub_ids)
+            try:
+                ws = this.ws
+                payload['_tx_id'] = ws.get_tx_id()
+                payload['_sender'] = ws.connection.pk
+            except AttributeError:
+                pass
             cursor = connections[using].cursor()
             cursor.execute(
                 'NOTIFY "%s", %%s' % col.name,

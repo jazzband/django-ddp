@@ -4,12 +4,14 @@ from __future__ import absolute_import
 
 import atexit
 import inspect
+import itertools
 import sys
 import traceback
 
+from six.moves import range as irange
+
 import ejson
 import geventwebsocket
-from django.conf import settings
 from django.core.handlers.base import BaseHandler
 from django.core.handlers.wsgi import WSGIRequest
 from django.db import connection, transaction
@@ -40,9 +42,6 @@ def validate_kwargs(func, kwargs):
         required = all_args[:-len(defaults)]
     else:
         required = all_args[:]
-    optional = [
-        arg for arg in all_args if arg not in required
-    ]
 
     # translate 'foo_' to avoid reserved names like 'id'
     trans = {
@@ -88,6 +87,11 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
 
     """Django DDP WebSocket application."""
 
+    _tx_buffer = None
+    _tx_buffer_id_gen = None
+    _tx_next_id_gen = None
+    _tx_next_id = None
+
     methods = {}
     versions = [  # first item is preferred version
         '1',
@@ -105,9 +109,22 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
     request = None
     base_handler = BaseHandler()
 
+    def get_tx_id(self):
+        """Get the next TX msg ID."""
+        return next(self._tx_buffer_id_gen)
+
     def on_open(self):
         """Handle new websocket connection."""
         self.logger = self.ws.logger
+
+        # self._tx_buffer collects outgoing messages which must be sent in order
+        self._tx_buffer = {}
+        # track the head of the queue (buffer) and the next msg to be sent
+        self._tx_buffer_id_gen = itertools.cycle(irange(sys.maxint))
+        self._tx_next_id_gen = itertools.cycle(irange(sys.maxint))
+        # start by waiting for the very first message
+        self._tx_next_id = next(self._tx_next_id_gen)
+
         self.request = WSGIRequest(self.ws.environ)
         # Apply request middleware (so we get request.user and other attrs)
         # pylint: disable=protected-access
@@ -214,20 +231,31 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             traceback.print_exc()
             self.error(MeteorError(500, 'Internal server error', err))
 
-    def send(self, data):
+    def send(self, data, tx_id=None):
         """Send raw `data` to WebSocket client."""
-        if data[1:]:
-            msg = ejson.loads(data[1:])
-        self.logger.debug('> %s %r', self, data)
-        try:
-            self.ws.send(data)
-        except geventwebsocket.WebSocketError:
-            self.ws.close()
+        # buffer data until we get pre-requisite data
+        if tx_id is None:
+            tx_id = self.get_tx_id()
+        self._tx_buffer[tx_id] = data
 
-    def send_msg(self, payload):
+        # de-queue messages from buffer
+        while self._tx_next_id in self._tx_buffer:
+            # pull next message from buffer
+            data = self._tx_buffer.pop(self._tx_next_id)
+            # advance next message ID
+            self._tx_next_id = next(self._tx_next_id_gen)
+            # send message
+            self.logger.debug('> %s %r', self, data)
+            try:
+                self.ws.send(data)
+            except geventwebsocket.WebSocketError:
+                self.ws.close()
+                break
+
+    def send_msg(self, payload, tx_id=None):
         """Send EJSON payload to remote."""
         data = ejson.dumps([ejson.dumps(payload)])
-        self.send('a%s' % data)
+        self.send('a%s' % data, tx_id=tx_id)
 
     def reply(self, msg, **kwargs):
         """Send EJSON reply to remote."""
@@ -296,10 +324,6 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             self.reply('pong')
         else:
             self.reply('pong', id=id_)
-
-    def sub_notify(self, id_, name, params, data):
-        """Send added/changed/removed msg due to receiving NOTIFY."""
-        self.reply(**data)
 
     def recv_sub(self, id_, name, params):
         """DDP sub handler."""
