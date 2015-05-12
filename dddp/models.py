@@ -51,9 +51,9 @@ def get_object_id(model, meteor_id):
 
 
 @transaction.atomic
-def get_object(model, meteor_id):
+def get_object(model, meteor_id, *args, **kwargs):
     """Return an object for the given meteor_id."""
-    return model.objects.get(
+    return model.objects.filter(*args, **kwargs).get(
         pk=get_object_id(model, meteor_id),
     )
 
