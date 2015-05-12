@@ -1,6 +1,12 @@
 Change Log
 ==========
 
+0.6.0
+-----
+* Add dddp.accounts module which provides password based auth mapping to
+  django.contrib.auth module.
+* Fix ordering of change messages and result message in method calls.
+
 0.5.0
 -----
 * Drop relations to sessions.Session as WebSocket requests don't have
