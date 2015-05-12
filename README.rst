@@ -52,30 +52,38 @@ Add 'dddp' to your settings.INSTALLED_APPS:
     ...
     INSTALLED_APPS = list(INSTALLED_APPS) + ['dddp']
 
-Add ddp.py to your Django app:
+If you'd like support for the Meteor Accounts package (ie: login/logout
+with django.contrib.auth) consult the section on authentication below
+and use the following line instead:
+
+    # settings.py
+    ...
+    INSTALLED_APPS = list(INSTALLED_APPS) + ['dddp', 'dddp.accounts']
+
+Add ddp.py to your Django application:
 
 .. code:: python
 
     # bookstore/ddp.py
-    
+
     from dddp.api import API, Collection, Publication
     from bookstore import models
-    
+
     class Book(Collection):
         model = models.Book
-    
-    
+
+
     class Author(Collection):
         model = models.Author
-    
-    
+
+
     class AllBooks(Publication):
         queries = [
             models.Author.objects.all(),
             models.Book.objects.all(),
         ]
-    
-    
+
+
     class BooksByAuthorEmail(Publication):
         def get_queries(self, author_email):
             return [
@@ -86,13 +94,13 @@ Add ddp.py to your Django app:
                     author__email=author_email,
                 ),
             ]
-    
-    
+
+
     API.register(
         [Book, Author, AllBooks, BooksByAuthorEmail]
     )
 
-Connect your Meteor app to the Django DDP service:
+Connect your Meteor application to the Django DDP service:
 
 .. code:: javascript
 
@@ -113,11 +121,45 @@ Start the Django DDP service:
 
     DJANGO_SETTINGS_MODULE=myproject.settings dddp
 
-In a separate terminal, start Meteor (from within your meteor app directory):
+In a separate terminal, start Meteor (from within your meteor
+application directory):
 
 .. code:: sh
 
     meteor
+
+
+Adding API endpoints (server method definitions)
+------------------------------------------------
+API endpoints can be added by calling `register` method of the
+dddp.api.API object from the ddp.py module of your Django app, on a
+subclass of dddp.api.APIMixin - both dddp.api.Collection and
+dddp.api.Publication are suitable, or you may define your own subclass
+of dddp.api.APIMixin.  A good example of this can be seen in
+dddp/accounts/ddp.py in the source of django-ddp.
+
+
+Authentication
+--------------
+Authentication is provided using the standard meteor accounts system,
+along with the `accounts-secure` package which turns off Meteor's
+password hashing in favour of using TLS (HTTPS + WebSockets). This
+ensures strong protection for all data over the wire.  Correctly using
+TLS/SSL also protects your site against man-in-the-middle and replay
+attacks - Meteor is vulnerable to both of these without using
+encryption.
+
+Add `dddp.accounts` to your `settings.INSTALLED_APPS` as described in
+the example usage section above, then add `tysonclugg:accounts-secure`
+to your Meteor application (from within your meteor application
+directory):
+
+.. code:: sh
+
+    meteor add tysonclugg:accounts-secure
+
+Then follow the normal procedure to add login/logout views to your
+Meteor application.
 
 
 Contributors
