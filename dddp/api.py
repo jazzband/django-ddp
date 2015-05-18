@@ -346,7 +346,9 @@ class Collection(APIMixin):
         if exps:
             # clone/update obj with values but only for the expression fields
             obj = deepcopy(obj)
-            for name, val in self.model.objects.values(*exps).get(pk=obj.pk):
+            for name, val in self.model.objects.values(*exps).get(
+                    pk=obj.pk,
+            ).items():
                 setattr(obj, name, val)
 
         # run serialization now all fields are "concrete" (not F expressions)
