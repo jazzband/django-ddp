@@ -457,11 +457,11 @@ class DDP(APIMixin):
         ws, _ = self._subs[id_]
         connection_pk = data.pop('_sender', None)
         tx_id = data.pop('_tx_id', None)
-        connection = getattr(ws, 'connection', None)
-        if connection is None:
+        connection_obj = getattr(ws, 'connection', None)
+        if connection_obj is None:
             tx_id = None
         else:
-            if connection.pk != connection_pk:
+            if connection_obj.pk != connection_pk:
                 tx_id = None
         ws.send_msg(data, tx_id=tx_id)
 
