@@ -264,9 +264,8 @@ class Auth(APIMixin):
                 "`meteor add tysonclugg:accounts-secure` to fix.",
             )
 
-    @staticmethod
     @api_endpoint('createUser')
-    def create_user(params):
+    def create_user(self, params):
         """Register a new user account."""
         receivers = create_user.send(
             sender=__name__,
@@ -275,6 +274,16 @@ class Auth(APIMixin):
         )
         if len(receivers) == 0:
             raise MeteorError(501, 'Handler for `create_user` not registered.')
+        user = receivers[0][1]
+        user = auth.authenticate(
+            username=user.get_username(), password=params['password'],
+        )
+        auth.login(this.request, user)
+        return self.get_user_token(
+            user=user,
+            session_key=this.request.session.session_key,
+            expiry_date=this.request.session.get_expiry_date(),
+        )
 
     @staticmethod
     @api_endpoint

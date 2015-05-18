@@ -1,5 +1,5 @@
 """Django DDP API, Collections, Cursors and Publications."""
-from __future__ import absolute_import, unicode_literals
+from __future__ import absolute_import, unicode_literals, print_function
 
 # standard library
 import collections
@@ -346,7 +346,9 @@ class Collection(APIMixin):
         if exps:
             # clone/update obj with values but only for the expression fields
             obj = deepcopy(obj)
-            for name, val in self.model.objects.values(*exps).get(pk=obj.pk):
+            for name, val in self.model.objects.values(*exps).get(
+                    pk=obj.pk,
+            ).items():
                 setattr(obj, name, val)
 
         # run serialization now all fields are "concrete" (not F expressions)
@@ -362,6 +364,7 @@ class Collection(APIMixin):
         else:
             raise ValueError('Invalid message type: %r' % msg)
 
+        del data['model']
         data.update(msg=msg, collection=self.name)
         return data
 
@@ -455,11 +458,11 @@ class DDP(APIMixin):
         ws, _ = self._subs[id_]
         connection_pk = data.pop('_sender', None)
         tx_id = data.pop('_tx_id', None)
-        connection = getattr(ws, 'connection', None)
-        if connection is None:
+        connection_obj = getattr(ws, 'connection', None)
+        if connection_obj is None:
             tx_id = None
         else:
-            if connection.pk != connection_pk:
+            if connection_obj.pk != connection_pk:
                 tx_id = None
         ws.send_msg(data, tx_id=tx_id)
 
@@ -478,7 +481,15 @@ class DDP(APIMixin):
         try:
             pub = self._registry[pub_path(name)]
         except KeyError:
-            this.error('Invalid publication name: %r' % name)
+            this.send_msg({
+                'msg': 'nosub',
+                'error': {
+                    'error': 404,
+                    'errorType': 'Meteor.Error',
+                    'message': 'Subscription not found [404]',
+                    'reason': 'Subscription not found',
+                },
+            })
             return
         obj, created = Subscription.objects.get_or_create(
             connection_id=this.ws.connection.pk,
@@ -580,6 +591,7 @@ class DDP(APIMixin):
             this.send_msg(msg)
         except Exception, err:  # log error+stack trace -> pylint: disable=W0703
             details = traceback.format_exc()
+            print(details)
             this.ws.logger.error(err, exc_info=True)
             msg = {
                 'msg': 'result',

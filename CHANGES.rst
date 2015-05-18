@@ -1,6 +1,15 @@
 Change Log
 ==========
 
+0.6.1
+-----
+* Fix `createUser` method to login new user after creation.
+* Dump stack trace to console on error for easier debugging DDP apps.
+* Fix handing of F expressions in object change handler.
+* Send `nosub` in response to invalid subscription request.
+* Per connection tracking of sent objects so changed/added sent 
+  appropriately.
+
 0.6.0
 -----
 * Add dddp.accounts module which provides password based auth mapping to
