@@ -3,6 +3,7 @@
 from __future__ import absolute_import
 
 import atexit
+import collections
 import inspect
 import itertools
 import sys
@@ -107,6 +108,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
     connection = None
     subs = None
     request = None
+    remote_ids = None
     base_handler = BaseHandler()
 
     def get_tx_id(self):
@@ -116,6 +118,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
     def on_open(self):
         """Handle new websocket connection."""
         self.logger = self.ws.logger
+        self.remote_ids = collections.defaultdict(set)
 
         # self._tx_buffer collects outgoing messages which must be sent in order
         self._tx_buffer = {}
@@ -254,6 +257,22 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
 
     def send_msg(self, payload, tx_id=None):
         """Send EJSON payload to remote."""
+        msg = payload.get('msg', None)
+        if msg in ('added', 'changed', 'removed'):
+            ids = self.remote_ids[payload['collection']]
+            meteor_id = payload['id']
+            if msg == 'added':
+                if meteor_id in ids:
+                    msg = payload['msg'] = 'changed'
+                else:
+                    ids.add(meteor_id)
+            elif msg == 'changed':
+                if meteor_id not in ids:
+                    # object has become visible, treat as `added`.
+                    msg = payload['msg'] = 'added'
+                    ids.add(meteor_id)
+            elif msg == 'removed':
+                ids.remove(meteor_id)
         data = ejson.dumps([ejson.dumps(payload)])
         self.send('a%s' % data, tx_id=tx_id)
 

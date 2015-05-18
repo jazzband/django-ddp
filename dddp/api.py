@@ -364,6 +364,7 @@ class Collection(APIMixin):
         else:
             raise ValueError('Invalid message type: %r' % msg)
 
+        del data['model']
         data.update(msg=msg, collection=self.name)
         return data
 
