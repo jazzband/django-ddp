@@ -1,5 +1,5 @@
 """Django DDP API, Collections, Cursors and Publications."""
-from __future__ import absolute_import, unicode_literals
+from __future__ import absolute_import, unicode_literals, print_function
 
 # standard library
 import collections
@@ -580,6 +580,7 @@ class DDP(APIMixin):
             this.send_msg(msg)
         except Exception, err:  # log error+stack trace -> pylint: disable=W0703
             details = traceback.format_exc()
+            print(details)
             this.ws.logger.error(err, exc_info=True)
             msg = {
                 'msg': 'result',
