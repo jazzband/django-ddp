@@ -480,7 +480,15 @@ class DDP(APIMixin):
         try:
             pub = self._registry[pub_path(name)]
         except KeyError:
-            this.error('Invalid publication name: %r' % name)
+            this.send_msg({
+                'msg': 'nosub',
+                'error': {
+                    'error': 404,
+                    'errorType': 'Meteor.Error',
+                    'message': 'Subscription not found [404]',
+                    'reason': 'Subscription not found',
+                },
+            })
             return
         obj, created = Subscription.objects.get_or_create(
             connection_id=this.ws.connection.pk,
