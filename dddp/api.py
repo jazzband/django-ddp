@@ -749,8 +749,10 @@ class DDP(APIMixin):
             payload['_sub_ids'] = sorted(sub_ids)
             try:
                 ws = this.ws
-                payload['_tx_id'] = ws.get_tx_id()
                 payload['_sender'] = ws.connection.pk
+                if set(sub_ids).intersection(self._subs):
+                    # message must go to connection that initiated the change
+                    payload['_tx_id'] = ws.get_tx_id()
             except AttributeError:
                 pass
             cursor = connections[using].cursor()

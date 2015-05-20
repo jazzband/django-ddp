@@ -1,6 +1,11 @@
 Change Log
 ==========
 
+0.6.2
+-----
+* Bugfix issue where DDP connection thread stops sending messages after 
+  changing item that has subscribers for other connections but not self.
+
 0.6.1
 -----
 * Fix `createUser` method to login new user after creation.
