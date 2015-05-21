@@ -17,7 +17,7 @@ from django.core.handlers.base import BaseHandler
 from django.core.handlers.wsgi import WSGIRequest
 from django.db import connection, transaction
 
-from dddp import THREAD_LOCAL as this, alea
+from dddp import THREAD_LOCAL as this, alea, ADDED, CHANGED, REMOVED
 
 
 class MeteorError(Exception):
@@ -144,6 +144,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
     def on_close(self, reason):
         """Handle closing of websocket connection."""
         if self.connection is not None:
+            del self.pgworker.connections[self.connection.pk]
             self.connection.delete()
             self.connection = None
         self.logger.info('- %s %s', self, reason or 'CLOSE')
@@ -248,20 +249,20 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
     def send_msg(self, payload, tx_id=None):
         """Send EJSON payload to remote."""
         msg = payload.get('msg', None)
-        if msg in ('added', 'changed', 'removed'):
+        if msg in (ADDED, CHANGED, REMOVED):
             ids = self.remote_ids[payload['collection']]
             meteor_id = payload['id']
-            if msg == 'added':
+            if msg == ADDED:
                 if meteor_id in ids:
-                    msg = payload['msg'] = 'changed'
+                    msg = payload['msg'] = CHANGED
                 else:
                     ids.add(meteor_id)
-            elif msg == 'changed':
+            elif msg == CHANGED:
                 if meteor_id not in ids:
                     # object has become visible, treat as `added`.
-                    msg = payload['msg'] = 'added'
+                    msg = payload['msg'] = ADDED
                     ids.add(meteor_id)
-            elif msg == 'removed':
+            elif msg == REMOVED:
                 ids.remove(meteor_id)
         data = ejson.dumps([ejson.dumps(payload)])
         self.send('a%s' % data, tx_id=tx_id)
@@ -341,6 +342,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
                 remote_addr=self.remote_addr,
                 version=version,
             )
+            self.pgworker.connections[self.connection.pk] = self
             atexit.register(self.on_close, 'Shutting down.')
             self.reply('connected', session=self.connection.connection_id)
 

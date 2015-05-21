@@ -1,6 +1,6 @@
 """Django DDP utils for DDP messaging."""
 from copy import deepcopy
-from dddp import THREAD_LOCAL as this
+from dddp import THREAD_LOCAL as this, REMOVED
 from django.db.models.expressions import ExpressionNode
 
 
@@ -34,7 +34,7 @@ def obj_change_as_msg(obj, msg):
         'collection': name,
         'id': data['pk'],
     }
-    if msg != 'removed':
+    if msg != REMOVED:
         payload['fields'] = data['fields']
 
     return (name, payload)
