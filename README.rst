@@ -13,7 +13,7 @@ Scalability
 -----------
 All database queries to support DDP events are done once by the server instance that has made changes via the Django ORM.  Django DDP multiplexes messages for active subscriptions, broadcasting an aggregated change message on channels specific to each Django model that has been published.
 
-Peer servers subscribe to aggregate broadcast events only for channels (Django models) that their connected clients subscribe to.  The aggregate events received are de-multiplexed and dispatched to individual client connections.  No additional database queries are required for de-multiplexing or dispatch by peer servers.
+Peer servers subscribe to aggregate broadcast events which are de-multiplexed and dispatched to individual client connections.  No additional database queries are required for de-multiplexing or dispatch by peer servers.
 
 
 Limitations

@@ -19,6 +19,10 @@ else:
 
 default_app_config = 'dddp.apps.DjangoDDPConfig'
 
+ADDED = 'added'
+CHANGED = 'changed'
+REMOVED = 'removed'
+
 
 def greenify():
     """Patch threading and psycopg2 modules for green threads."""
