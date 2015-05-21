@@ -1,6 +1,10 @@
 Change Log
 ==========
 
+0.6.3
+-----
+* Refactor pub/sub functionality to fix support for `removed` messages.
+
 0.6.2
 -----
 * Bugfix issue where DDP connection thread stops sending messages after 
