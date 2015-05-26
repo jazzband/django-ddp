@@ -3,6 +3,7 @@
 from __future__ import print_function, absolute_import
 
 import collections
+import os
 import sys
 
 
@@ -59,7 +60,7 @@ def ddpp_sockjs_info(environ, start_response):
     ]))
 
 
-def serve(listen, debug=False):
+def serve(listen, debug=False, **ssl_args):
     """Spawn greenlets for handling websockets and PostgreSQL calls."""
     import signal
     from django.apps import apps
@@ -101,6 +102,7 @@ def serve(listen, debug=False):
             (host, port),
             resource,
             debug=debug,
+            **{key:val for key, val in ssl_args.items() if val is not None}
         )
         for host, port
         in listen
@@ -185,11 +187,38 @@ def addr(val, default_port=8000, defualt_host='localhost'):
 def main():
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        'listen', metavar='address[:port]', nargs='*', type=addr,
+    django = parser.add_argument_group('Django Options')
+    django.add_argument(
+        '--settings', metavar='SETTINGS', dest='settings',
+        help="The Python path to a settings module, e.g. "
+        "\"myproject.settings.main\". If this isn't provided, the "
+        "DJANGO_SETTINGS_MODULE environment variable will be used.",
     )
+    http = parser.add_argument_group('HTTP Options')
+    http.add_argument(
+        'listen', metavar='address[:port]', nargs='*', type=addr,
+        help='Listening address for HTTP(s) server.',
+    )
+    ssl = parser.add_argument_group('SSL Options')
+    ssl.add_argument('--ssl-version', metavar='SSL_VERSION', dest='ssl_version',
+                     help="SSL version to use (see stdlib ssl module's) [3]",
+                     choices=['1', '2', '3'], default='3')
+    ssl.add_argument('--certfile', metavar='FILE', dest='certfile',
+                     help="SSL certificate file [None]")
+    ssl.add_argument('--ciphers', metavar='CIPHERS', dest='ciphers',
+                     help="Ciphers to use (see stdlib ssl module's) [TLSv1]")
+    ssl.add_argument('--ca-certs', metavar='FILE', dest='ca_certs',
+                     help="CA certificates file [None]")
+    ssl.add_argument('--keyfile', metavar='FILE', dest='keyfile',
+                     help="SSL key file [None]")
     namespace = parser.parse_args()
-    serve(namespace.listen or [Addr('localhost', 8000)])
+    if namespace.settings:
+        os.environ['DJANGO_SETTINGS_MODULE'] = namespace.settings
+    serve(
+        namespace.listen or [Addr('localhost', 8000)],
+        keyfile=namespace.keyfile,
+        certfile=namespace.certfile,
+    )
 
 
 if __name__ == '__main__':
