@@ -1,10 +1,11 @@
 #!/usr/bin/env python
+"""Entry point for Django DDP test project."""
 import os
 import sys
 
 
 if __name__ == "__main__":
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "test_project.settings")
+    os.environ['DJANGO_SETTINGS_MODULE'] = 'dddp.test.test_project.settings'
 
     from dddp import greenify
     greenify()

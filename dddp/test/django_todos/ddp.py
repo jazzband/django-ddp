@@ -1,5 +1,5 @@
 from dddp.api import API, Collection, Publication
-from django_todos import models
+from dddp.test.django_todos import models
 
 
 class Task(Collection):
