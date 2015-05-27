@@ -219,14 +219,14 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             self.error(MeteorError(500, 'Internal server error', err))
 
     def send(self, data, tx_id=None):
-        """Send raw `data` to WebSocket client."""
+        """Send `data` (raw string or EJSON payload) to WebSocket client."""
         # buffer data until we get pre-requisite data
         if tx_id is None:
             tx_id = self.get_tx_id()
         if self._tx_buffer:
             self.logger.debug(
                 'TX received %d, waiting for %d, have %r.',
-                tx_id, self._tx_next_id, sorted(self._tx_buffer),
+                tx_id, self._tx_next_id, self._tx_buffer,
             )
         self._tx_buffer[tx_id] = data
 
@@ -238,6 +238,28 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
                 self.logger.debug('TX found %d', self._tx_next_id)
             # advance next message ID
             self._tx_next_id = next(self._tx_next_id_gen)
+            if not isinstance(data, basestring):
+                # ejson payload
+                msg = data.get('msg', None)
+                if msg in (ADDED, CHANGED, REMOVED):
+                    ids = self.remote_ids[data['collection']]
+                    meteor_id = data['id']
+                    if msg == ADDED:
+                        if meteor_id in ids:
+                            msg = data['msg'] = CHANGED
+                        else:
+                            ids.add(meteor_id)
+                    elif msg == CHANGED:
+                        if meteor_id not in ids:
+                            # object has become visible, treat as `added`.
+                            msg = data['msg'] = ADDED
+                            ids.add(meteor_id)
+                    elif msg == REMOVED:
+                        try:
+                            ids.remove(meteor_id)
+                        except KeyError:
+                            continue  # client doesn't have this, don't send.
+                data = 'a%s' % ejson.dumps([ejson.dumps(data)])
             # send message
             self.logger.debug('> %s %r', self, data)
             try:
@@ -246,31 +268,10 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
                 self.ws.close()
                 break
 
-    def send_msg(self, payload, tx_id=None):
-        """Send EJSON payload to remote."""
-        msg = payload.get('msg', None)
-        if msg in (ADDED, CHANGED, REMOVED):
-            ids = self.remote_ids[payload['collection']]
-            meteor_id = payload['id']
-            if msg == ADDED:
-                if meteor_id in ids:
-                    msg = payload['msg'] = CHANGED
-                else:
-                    ids.add(meteor_id)
-            elif msg == CHANGED:
-                if meteor_id not in ids:
-                    # object has become visible, treat as `added`.
-                    msg = payload['msg'] = ADDED
-                    ids.add(meteor_id)
-            elif msg == REMOVED:
-                ids.remove(meteor_id)
-        data = ejson.dumps([ejson.dumps(payload)])
-        self.send('a%s' % data, tx_id=tx_id)
-
     def reply(self, msg, **kwargs):
         """Send EJSON reply to remote."""
         kwargs['msg'] = msg
-        self.send_msg(kwargs)
+        self.send(kwargs)
 
     def error(self, err, reason=None, detail=None, **kwargs):
         """Send EJSON error to remote."""
@@ -323,7 +324,6 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             this.ws = self
             this.request = self.request
             this.send = self.send
-            this.send_msg = self.send_msg
             this.reply = self.reply
             this.error = self.error
             this.request.session.save()

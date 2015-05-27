@@ -322,14 +322,25 @@ class Collection(APIMixin):
             if int_type in ('DecimalField', 'FloatField'):
                 schema['decimal'] = True
             yield field.column, schema
+
         for field in meta.local_many_to_many:
-            yield '%s_ids' % field.column, {
+            schema = {
                 'type': '[String]',
                 'relation': {
                     'name': field.name,
                     'collection': model_name(field.rel.to),
                 },
             }
+
+            blank = getattr(field, 'blank', None)
+            if blank:
+                schema['optional'] = True
+
+            formfield = field.formfield()
+            if formfield:
+                schema['label'] = force_text(formfield.label)
+
+            yield '%s_ids' % field.column, schema
 
     @api_endpoint
     def schema(self):
@@ -433,7 +444,6 @@ class DDP(APIMixin):
     def __init__(self):
         """DDP API init."""
         self._registry = {}
-        self._subs = {}
         self._ddp_subscribers = {}
 
     def get_collection(self, model):
@@ -459,36 +469,12 @@ class DDP(APIMixin):
         else:
             raise TypeError('Invalid query spec: %r' % qs)
 
-    @api_endpoint
-    def sub(self, id_, name, *params):
-        """Create subscription, send matched objects that haven't been sent."""
-        try:
-            pub = self._registry[pub_path(name)]
-        except KeyError:
-            this.send_msg({
-                'msg': 'nosub',
-                'error': {
-                    'error': 404,
-                    'errorType': 'Meteor.Error',
-                    'message': 'Subscription not found [404]',
-                    'reason': 'Subscription not found',
-                },
-            })
-            return
-        obj, created = Subscription.objects.get_or_create(
-            connection_id=this.ws.connection.pk,
-            sub_id=id_,
-            user_id=this.request.user.pk,
-            defaults={
-                'publication': pub.name,
-                'params_ejson': ejson.dumps(params),
-            },
-        )
-        if not created:
-            this.send_msg({'msg': 'ready', 'subs': [id_]})
-            return
-        # re-read from DB so we can get transaction ID (xmin)
-        obj = Subscription.objects.extra(**XMIN).get(pk=obj.pk)
+    def sub_unique_objects(self, obj, params=None, pub=None, *args, **kwargs):
+        """Return objects that are only visible through given subscription."""
+        if params is None:
+            params = ejson.loads(obj.params_ejson)
+        if pub is None:
+            pub = self._registry[pub_path(obj.publication)]
         queries = collections.OrderedDict(
             (col.name, (col, qs))
             for (qs, col)
@@ -498,28 +484,22 @@ class DDP(APIMixin):
                 in pub.get_queries(*params)
             )
         )
-        self._subs[id_] = (this.ws, sorted(queries))
         # mergebox via MVCC!  For details on how this is possible, read this:
         # https://devcenter.heroku.com/articles/postgresql-concurrency
         to_send = collections.OrderedDict(
             (
                 name,
                 col.objects_for_user(
-                    user=this.request.user.pk,
+                    user=obj.user_id,
                     qs=qs,
-                    xmin__lte=obj.xmin,
+                    *args, **kwargs
                 ),
             )
             for name, (col, qs)
             in queries.items()
         )
-        for name, (col, qs) in queries.items():
-            obj.collections.create(
-                model_name=model_name(qs.model),
-                collection_name=name,
-            )
         for other in Subscription.objects.filter(
-                connection=this.ws.connection,
+                connection=obj.connection_id,
                 collections__collection_name__in=queries.keys(),
         ).exclude(
             pk=obj.pk,
@@ -527,30 +507,73 @@ class DDP(APIMixin):
             other_pub = self._registry[pub_path(other.publication)]
             for qs in other_pub.get_queries(*other.params):
                 qs, col = self.qs_and_collection(qs)
-                if col not in to_send:
+                if col.name not in to_send:
                     continue
-                to_send[col] = to_send[col.name].exclude(
+                to_send[col.name] = to_send[col.name].exclude(
                     pk__in=col.objects_for_user(
-                        user=this.request.user.pk,
+                        user=other.user_id,
                         qs=qs,
-                        xmin__lte=obj.xmin,
+                        *args, **kwargs
                     ).values('pk'),
                 )
         for collection_name, qs in to_send.items():
             col = self.get_col_by_name(collection_name)
+            yield col, qs.distinct()
+
+    @api_endpoint
+    def sub(self, id_, name, *params):
+        """Create subscription, send matched objects that haven't been sent."""
+        try:
+            pub = self._registry[pub_path(name)]
+        except KeyError:
+            this.send({
+                'msg': 'nosub',
+                'error': {
+                    'error': 404,
+                    'errorType': 'Meteor.Error',
+                    'message': 'Subscription not found [404]',
+                    'reason': 'Subscription not found',
+                },
+            })
+            return
+        sub, created = Subscription.objects.get_or_create(
+            connection_id=this.ws.connection.pk,
+            sub_id=id_,
+            user_id=this.request.user.pk,
+            defaults={
+                'publication': pub.name,
+                'params_ejson': ejson.dumps(params),
+            },
+        )
+        if not created:
+            this.send({'msg': 'ready', 'subs': [id_]})
+            return
+        # re-read from DB so we can get transaction ID (xmin)
+        sub = Subscription.objects.extra(**XMIN).get(pk=sub.pk)
+        for col, qs in self.sub_unique_objects(
+                sub, params, pub, xmin__lte=sub.xmin,
+        ):
+            sub.collections.create(
+                model_name=model_name(qs.model),
+                collection_name=col.name,
+            )
             for obj in qs:
                 payload = col.obj_change_as_msg(obj, ADDED)
-                this.send_msg(payload)
-        this.send_msg({'msg': 'ready', 'subs': [id_]})
+                this.send(payload)
+        this.send({'msg': 'ready', 'subs': [id_]})
 
     @api_endpoint
     def unsub(self, id_):
         """Remove a subscription."""
-        Subscription.objects.filter(
-            connection=this.ws.connection,
-            sub_id=id_,
-        ).delete()
-        this.ws.send_msg({'msg': 'nosub', 'id': id_})
+        sub = Subscription.objects.get(
+            connection=this.ws.connection, sub_id=id_,
+        )
+        for col, qs in self.sub_unique_objects(sub):
+            for obj in qs:
+                payload = col.obj_change_as_msg(obj, REMOVED)
+                this.send(payload)
+        sub.delete()
+        this.send({'msg': 'nosub', 'id': id_})
 
     @api_endpoint
     def method(self, method, params, id_):
@@ -565,7 +588,7 @@ class DDP(APIMixin):
             msg = {'msg': 'result', 'id': id_}
             if result is not None:
                 msg['result'] = result
-            this.send_msg(msg)
+            this.send(msg)
         except Exception, err:  # log error+stack trace -> pylint: disable=W0703
             details = traceback.format_exc()
             print(details)
@@ -580,7 +603,7 @@ class DDP(APIMixin):
             }
             if settings.DEBUG:
                 msg['error']['details'] = details
-            this.send_msg(msg)
+            this.send(msg)
 
     def register(self, api_or_iterable):
         """Register an API endpoint."""

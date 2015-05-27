@@ -71,9 +71,9 @@ class PostgresGreenlet(gevent.Greenlet):
                         except KeyError:
                             continue  # connection not in this process
                         if connection_id == sender:
-                            ws.send_msg(data, tx_id=tx_id)
+                            ws.send(data, tx_id=tx_id)
                         else:
-                            ws.send_msg(data)
+                            ws.send(data)
                 break
             elif state == psycopg2.extensions.POLL_WRITE:
                 gevent.select.select([], [self.conn.fileno()], [])

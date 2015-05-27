@@ -36,8 +36,9 @@ INSTALLED_APPS = (
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django_todos',
     'dddp',
+    'dddp.accounts',
+    'dddp.test.django_todos',
 )
 
 MIDDLEWARE_CLASSES = (
@@ -50,9 +51,9 @@ MIDDLEWARE_CLASSES = (
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 )
 
-ROOT_URLCONF = 'test_project.urls'
+ROOT_URLCONF = 'dddp.test.test_project.urls'
 
-WSGI_APPLICATION = 'test_project.wsgi.application'
+WSGI_APPLICATION = 'dddp.test.test_project.wsgi.application'
 
 
 # Database
