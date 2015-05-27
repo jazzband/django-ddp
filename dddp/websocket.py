@@ -226,7 +226,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         if self._tx_buffer:
             self.logger.debug(
                 'TX received %d, waiting for %d, have %r.',
-                tx_id, self._tx_next_id, sorted(self._tx_buffer),
+                tx_id, self._tx_next_id, self._tx_buffer,
             )
         self._tx_buffer[tx_id] = data
 
@@ -234,6 +234,10 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         while self._tx_next_id in self._tx_buffer:
             # pull next message from buffer
             data = self._tx_buffer.pop(self._tx_next_id)
+            if self._tx_buffer:
+                self.logger.debug('TX found %d', self._tx_next_id)
+            # advance next message ID
+            self._tx_next_id = next(self._tx_next_id_gen)
             if not isinstance(data, basestring):
                 # ejson payload
                 msg = data.get('msg', None)
@@ -251,12 +255,11 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
                             msg = data['msg'] = ADDED
                             ids.add(meteor_id)
                     elif msg == REMOVED:
-                        ids.remove(meteor_id)
+                        try:
+                            ids.remove(meteor_id)
+                        except KeyError:
+                            continue  # client doesn't have this, don't send.
                 data = 'a%s' % ejson.dumps([ejson.dumps(data)])
-            if self._tx_buffer:
-                self.logger.debug('TX found %d', self._tx_next_id)
-            # advance next message ID
-            self._tx_next_id = next(self._tx_next_id_gen)
             # send message
             self.logger.debug('> %s %r', self, data)
             try:
