@@ -88,13 +88,15 @@ def serve(listen, debug=False, **ssl_args):
         wsgi_app = get_wsgi_application()
         wsgi_name = str(wsgi_app.__class__)
 
-    resource = geventwebsocket.Resource({
-        r'/websocket': DDPWebSocketApplication,
-        r'^/sockjs/\d+/\w+/websocket$': DDPWebSocketApplication,
-        r'^/sockjs/\d+/\w+/xhr$': ddpp_sockjs_xhr,
-        r'^/sockjs/info$': ddpp_sockjs_info,
-        r'^/(?!(websocket|sockjs)/)': wsgi_app,
-    })
+    resource = geventwebsocket.Resource(
+        collections.OrderedDict([
+            (r'/websocket', DDPWebSocketApplication),
+            (r'^/sockjs/\d+/\w+/websocket$', DDPWebSocketApplication),
+            (r'^/sockjs/\d+/\w+/xhr$', ddpp_sockjs_xhr),
+            (r'^/sockjs/info$', ddpp_sockjs_info),
+            (r'^/(?!(websocket|sockjs)/)', wsgi_app),
+        ]),
+    )
 
     # setup WebSocketServer to dispatch web requests
     webservers = [
