@@ -465,7 +465,7 @@ class DDP(APIMixin):
         try:
             pub = self._registry[pub_path(name)]
         except KeyError:
-            this.send_msg({
+            this.send({
                 'msg': 'nosub',
                 'error': {
                     'error': 404,
@@ -485,7 +485,7 @@ class DDP(APIMixin):
             },
         )
         if not created:
-            this.send_msg({'msg': 'ready', 'subs': [id_]})
+            this.send({'msg': 'ready', 'subs': [id_]})
             return
         # re-read from DB so we can get transaction ID (xmin)
         obj = Subscription.objects.extra(**XMIN).get(pk=obj.pk)
@@ -540,8 +540,8 @@ class DDP(APIMixin):
             col = self.get_col_by_name(collection_name)
             for obj in qs:
                 payload = col.obj_change_as_msg(obj, ADDED)
-                this.send_msg(payload)
-        this.send_msg({'msg': 'ready', 'subs': [id_]})
+                this.send(payload)
+        this.send({'msg': 'ready', 'subs': [id_]})
 
     @api_endpoint
     def unsub(self, id_):
@@ -550,7 +550,7 @@ class DDP(APIMixin):
             connection=this.ws.connection,
             sub_id=id_,
         ).delete()
-        this.ws.send_msg({'msg': 'nosub', 'id': id_})
+        this.ws.send({'msg': 'nosub', 'id': id_})
 
     @api_endpoint
     def method(self, method, params, id_):
@@ -565,7 +565,7 @@ class DDP(APIMixin):
             msg = {'msg': 'result', 'id': id_}
             if result is not None:
                 msg['result'] = result
-            this.send_msg(msg)
+            this.send(msg)
         except Exception, err:  # log error+stack trace -> pylint: disable=W0703
             details = traceback.format_exc()
             print(details)
@@ -580,7 +580,7 @@ class DDP(APIMixin):
             }
             if settings.DEBUG:
                 msg['error']['details'] = details
-            this.send_msg(msg)
+            this.send(msg)
 
     def register(self, api_or_iterable):
         """Register an API endpoint."""
