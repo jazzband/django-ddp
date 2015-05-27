@@ -1,6 +1,11 @@
 Change Log
 ==========
 
+0.6.5
+-----
+* Use OrderedDict for geventwebsocket.Resource spec to support
+  geventwebsockets 0.9.4 and above.
+
 0.6.4
 -----
 * Send `removed` messages when client unsubscribes from publications.
