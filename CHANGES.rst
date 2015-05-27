@@ -1,6 +1,16 @@
 Change Log
 ==========
 
+0.6.4
+-----
+* Send `removed` messages when client unsubscribes from publications.
+* Add support for SSL options and --settings=SETTINGS args in dddp tool.
+* Add `optional` and `label` attributes to ManyToManyField simple 
+  schema.
+* Check order of added/changed when emitting WebSocket frames rather 
+  than when queuing messages.
+* Move test projects into path that can be imported post install.
+
 0.6.3
 -----
 * Refactor pub/sub functionality to fix support for `removed` messages.
