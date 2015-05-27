@@ -322,14 +322,25 @@ class Collection(APIMixin):
             if int_type in ('DecimalField', 'FloatField'):
                 schema['decimal'] = True
             yield field.column, schema
+
         for field in meta.local_many_to_many:
-            yield '%s_ids' % field.column, {
+            schema = {
                 'type': '[String]',
                 'relation': {
                     'name': field.name,
                     'collection': model_name(field.rel.to),
                 },
             }
+
+            blank = getattr(field, 'blank', None)
+            if blank:
+                schema['optional'] = True
+
+            formfield = field.formfield()
+            if formfield:
+                schema['label'] = force_text(formfield.label)
+
+            yield '%s_ids' % field.column, schema
 
     @api_endpoint
     def schema(self):
