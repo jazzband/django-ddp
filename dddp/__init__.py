@@ -97,7 +97,7 @@ class RandomStreams(object):
 def serializer_factory():
     """Make a new DDP serializer."""
     from django.core.serializers import get_serializer
-    return get_serializer('ddp')()
+    return get_serializer('python')()
 
 
 THREAD_LOCAL = ThreadLocal(

@@ -1,6 +1,13 @@
 Change Log
 ==========
 
+0.7.0
+-----
+* Refactor serialization to improve performance through reduced number 
+  of database queries, especially on sub/unsub.
+* Fix login/logout user subscription, now emitting user `added`/
+  `removed` upon `login`/`logout` respectively.
+
 0.6.5
 -----
 * Use OrderedDict for geventwebsocket.Resource spec to support
