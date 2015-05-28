@@ -3,7 +3,6 @@
 from __future__ import print_function
 
 from django.apps import AppConfig
-from django.core import serializers
 from django.conf import settings, ImproperlyConfigured
 from django.db import DatabaseError
 from django.db.models import signals
@@ -23,7 +22,6 @@ class DjangoDDPConfig(AppConfig):
 
     def ready(self):
         """Initialisation for django-ddp (setup lookups and signal handlers)."""
-        serializers.register_serializer('ddp', 'dddp.serializer')
         if not settings.DATABASES:
             raise ImproperlyConfigured('No databases configured.')
         for (alias, conf) in settings.DATABASES.items():

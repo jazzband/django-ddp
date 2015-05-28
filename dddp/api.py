@@ -23,7 +23,7 @@ import ejson
 from dddp import (
     AlreadyRegistered, THREAD_LOCAL as this, ADDED, CHANGED, REMOVED,
 )
-from dddp.models import Connection, Subscription, get_meteor_id
+from dddp.models import Connection, Subscription, get_meteor_id, get_meteor_ids
 
 
 XMIN = {'select': {'xmin': "'xmin'"}}
@@ -351,7 +351,11 @@ class Collection(APIMixin):
             in self.field_schema()
         }
 
-    def serialize(self, obj):
+    def serialize(self, obj, data):
+        """Default implementation for object serializer."""
+        return data
+
+    def serialize(self, obj, meteor_ids):
         """Generate a DDP msg for obj with specified msg type."""
         # check for F expressions
         exps = [
@@ -367,20 +371,42 @@ class Collection(APIMixin):
                 setattr(obj, name, val)
 
         # run serialization now all fields are "concrete" (not F expressions)
-        return this.serializer.serialize([obj])[0]
+        data = this.serializer.serialize([obj])[0]
+        fields = data['fields']
+        del data['pk'], data['model']
+        # Django supports model._meta -> pylint: disable=W0212
+        meta = self.model._meta
+        for field in meta.local_fields:
+            rel = getattr(field, 'rel', None)
+            if rel:
+                fields[field.column] = get_meteor_id(
+                    rel.to, fields.pop(field.name),
+                )
+        for field in meta.local_many_to_many:
+            fields['%s_ids' % field.name] = get_meteor_ids(
+                field.rel.to, fields.pop(field.name),
+            ).values()
+        return data
 
-    def obj_change_as_msg(self, obj, msg):
+    def obj_change_as_msg(self, obj, msg, meteor_ids=None):
         """Return DDP change message of specified type (msg) for obj."""
+        if meteor_ids is None:
+            meteor_ids = {}
+        try:
+            meteor_id = meteor_ids[str(obj.pk)]
+        except KeyError:
+            meteor_id = None
+        if meteor_id is None:
+            meteor_ids[str(obj.pk)] = meteor_id = get_meteor_id(obj)
+        assert meteor_id is not None
         if msg == REMOVED:
-            data = {'id': get_meteor_id(obj)}  # `removed` only needs ID
+            data = {}  # `removed` only needs ID (added below)
         elif msg in (ADDED, CHANGED):
-            data = self.serialize(obj)
-            data['id'] = str(data.pop('pk'))  # force casting ID as string
+            data = self.serialize(obj, meteor_ids)
         else:
             raise ValueError('Invalid message type: %r' % msg)
 
-        data.pop('model', None)
-        data.update(msg=msg, collection=self.name)
+        data.update(msg=msg, collection=self.name, id=meteor_id)
         return data
 
 
@@ -427,11 +453,6 @@ class Publication(APIMixin):
         )
 
 
-def pub_path(publication_name):
-    """Return api_path for a publication."""
-    return Publication.api_path_prefix_format.format(name=publication_name)
-
-
 class DDP(APIMixin):
 
     """Django DDP API."""
@@ -455,6 +476,11 @@ class DDP(APIMixin):
         """Return collection instance for given name."""
         return self._registry[COLLECTION_PATH_FORMAT.format(name=name)]
 
+    def get_pub_by_name(self, name):
+        """Return publication instance for given name."""
+        path = Publication.api_path_prefix_format.format(name=name)
+        return self._registry[path]
+
     @property
     def api_providers(self):
         """Return an iterable of API providers."""
@@ -474,11 +500,9 @@ class DDP(APIMixin):
         if params is None:
             params = ejson.loads(obj.params_ejson)
         if pub is None:
-            pub = self._registry[pub_path(obj.publication)]
+            pub = self.get_pub_by_name(obj.publication)
         queries = collections.OrderedDict(
-            (col.name, (col, qs))
-            for (qs, col)
-            in (
+            (col, qs) for (qs, col) in (
                 self.qs_and_collection(qs)
                 for qs
                 in pub.get_queries(*params)
@@ -488,43 +512,42 @@ class DDP(APIMixin):
         # https://devcenter.heroku.com/articles/postgresql-concurrency
         to_send = collections.OrderedDict(
             (
-                name,
+                col,
                 col.objects_for_user(
                     user=obj.user_id,
                     qs=qs,
                     *args, **kwargs
                 ),
             )
-            for name, (col, qs)
+            for col, qs
             in queries.items()
         )
         for other in Subscription.objects.filter(
                 connection=obj.connection_id,
-                collections__collection_name__in=queries.keys(),
+                collections__collection_name__in=[col.name for col in queries],
         ).exclude(
             pk=obj.pk,
         ).order_by('pk').distinct():
-            other_pub = self._registry[pub_path(other.publication)]
+            other_pub = self.get_pub_by_name(other.publication)
             for qs in other_pub.get_queries(*other.params):
                 qs, col = self.qs_and_collection(qs)
-                if col.name not in to_send:
+                if col not in to_send:
                     continue
-                to_send[col.name] = to_send[col.name].exclude(
+                to_send[col] = to_send[col].exclude(
                     pk__in=col.objects_for_user(
                         user=other.user_id,
                         qs=qs,
                         *args, **kwargs
                     ).values('pk'),
                 )
-        for collection_name, qs in to_send.items():
-            col = self.get_col_by_name(collection_name)
+        for col, qs in to_send.items():
             yield col, qs.distinct()
 
     @api_endpoint
     def sub(self, id_, name, *params):
         """Create subscription, send matched objects that haven't been sent."""
         try:
-            pub = self._registry[pub_path(name)]
+            pub = self.get_pub_by_name(name)
         except KeyError:
             this.send({
                 'msg': 'nosub',
@@ -557,8 +580,11 @@ class DDP(APIMixin):
                 model_name=model_name(qs.model),
                 collection_name=col.name,
             )
+            meteor_ids = get_meteor_ids(
+                qs.model, qs.values_list('pk', flat=True),
+            )
             for obj in qs:
-                payload = col.obj_change_as_msg(obj, ADDED)
+                payload = col.obj_change_as_msg(obj, ADDED, meteor_ids)
                 this.send(payload)
         this.send({'msg': 'ready', 'subs': [id_]})
 
@@ -569,8 +595,11 @@ class DDP(APIMixin):
             connection=this.ws.connection, sub_id=id_,
         )
         for col, qs in self.sub_unique_objects(sub):
+            meteor_ids = get_meteor_ids(
+                qs.model, qs.values_list('pk', flat=True),
+            )
             for obj in qs:
-                payload = col.obj_change_as_msg(obj, REMOVED)
+                payload = col.obj_change_as_msg(obj, REMOVED, meteor_ids)
                 this.send(payload)
         sub.delete()
         this.send({'msg': 'nosub', 'id': id_})
@@ -739,12 +768,11 @@ class DDP(APIMixin):
         for sub in Subscription.objects.filter(
                 collections__model_name=model_name(model),
         ).prefetch_related('collections'):
+            pub = self.get_pub_by_name(sub.publication)
             for qs, col in (
                     self.qs_and_collection(qs)
                     for qs
-                    in self._registry[
-                        'publication/%s/' % sub.publication
-                    ].get_queries(*sub.params)
+                    in pub.get_queries(*sub.params)
             ):
                 # check if obj is an instance of the model for the queryset
                 if qs.model is not model:
@@ -791,6 +819,7 @@ class DDP(APIMixin):
             my_connection_id = this.ws.connection.pk
         except AttributeError:
             ws = my_connection_id = None
+        meteor_ids = {}
         for col in set(old_col_connection_ids).union(new_col_connection_ids):
             old_connection_ids = old_col_connection_ids[col]
             new_connection_ids = new_col_connection_ids[col]
@@ -801,7 +830,7 @@ class DDP(APIMixin):
             ):
                 if not connection_ids:
                     continue  # nobody subscribed
-                payload = col.obj_change_as_msg(obj, msg)
+                payload = col.obj_change_as_msg(obj, msg, meteor_ids)
                 payload['_connection_ids'] = sorted(connection_ids)
                 if my_connection_id is not None:
                     payload['_sender'] = my_connection_id

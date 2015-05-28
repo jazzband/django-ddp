@@ -1,4 +1,7 @@
 """Django DDP models."""
+from __future__ import absolute_import
+
+import collections
 
 from django.db import models, transaction
 from django.conf import settings
@@ -10,17 +13,21 @@ from dddp import meteor_random_id
 
 
 @transaction.atomic
-def get_meteor_id(obj):
+def get_meteor_id(obj_or_model, obj_pk=None):
     """Return an Alea ID for the given object."""
-    if obj is None:
+    if obj_or_model is None:
         return None
     # Django model._meta is now public API -> pylint: disable=W0212
-    meta = obj._meta
-    if meta.model is ObjectMapping:
+    meta = obj_or_model._meta
+    model = meta.model
+    if model is ObjectMapping:
         # this doesn't make sense - raise TypeError
         raise TypeError("Can't map ObjectMapping instances through self.")
-    obj_pk = str(obj.pk)
-    content_type = ContentType.objects.get_for_model(meta.model)
+    if obj_or_model is not model and obj_pk is None:
+        obj_pk = str(obj_or_model.pk)
+    if obj_pk is None:
+        return None
+    content_type = ContentType.objects.get_for_model(model)
     try:
         return ObjectMapping.objects.values_list(
             'meteor_id', flat=True,
@@ -34,6 +41,31 @@ def get_meteor_id(obj):
             object_id=obj_pk,
             meteor_id=meteor_random_id('/collection/%s' % meta),
         ).meteor_id
+
+
+@transaction.atomic
+def get_meteor_ids(model, object_ids):
+    """Return Alea ID mapping for all given ids of specified model."""
+    content_type = ContentType.objects.get_for_model(model)
+    result = collections.OrderedDict(
+        (str(obj_pk), None)
+        for obj_pk
+        in object_ids
+    )
+    for obj_pk, meteor_id in ObjectMapping.objects.filter(
+            content_type=content_type,
+            object_id__in=list(result)
+    ).values_list('object_id', 'meteor_id'):
+        result[obj_pk] = meteor_id
+    for obj_pk, meteor_id in result.items():
+        if meteor_id is None:
+            # Django model._meta is now public API -> pylint: disable=W0212
+            result[obj_pk] = ObjectMapping.objects.create(
+                content_type=content_type,
+                object_id=obj_pk,
+                meteor_id=meteor_random_id('/collection/%s' % model._meta),
+            ).meteor_id
+    return result
 
 
 @transaction.atomic
