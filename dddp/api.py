@@ -812,10 +812,9 @@ class DDP(APIMixin):
             obj.pk, collections.defaultdict(set),
         )
         try:
-            ws = this.ws
             my_connection_id = this.ws.connection.pk
         except AttributeError:
-            ws = my_connection_id = None
+            my_connection_id = None
         meteor_ids = {}
         for col in set(old_col_connection_ids).union(new_col_connection_ids):
             old_connection_ids = old_col_connection_ids[col]
@@ -833,7 +832,7 @@ class DDP(APIMixin):
                     payload['_sender'] = my_connection_id
                     if my_connection_id in connection_ids:
                         # msg must go to connection that initiated the change
-                        payload['_tx_id'] = ws.get_tx_id()
+                        payload['_tx_id'] = this.ws.get_tx_id()
                 cursor = connections[using].cursor()
                 cursor.execute(
                     'NOTIFY "ddp", %s',
