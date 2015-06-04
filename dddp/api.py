@@ -351,10 +351,6 @@ class Collection(APIMixin):
             in self.field_schema()
         }
 
-    def serialize(self, obj, data):
-        """Default implementation for object serializer."""
-        return data
-
     def serialize(self, obj, meteor_ids):
         """Generate a DDP msg for obj with specified msg type."""
         # check for F expressions
