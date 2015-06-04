@@ -608,6 +608,7 @@ class DDP(APIMixin):
         except KeyError:
             this.error('Unknown method: %s' % method)
             return
+        params_repr = repr(params)
         try:
             result = handler(*params)
             msg = {'msg': 'result', 'id': id_}
@@ -616,6 +617,7 @@ class DDP(APIMixin):
             this.send(msg)
         except Exception, err:  # log error+stack trace -> pylint: disable=W0703
             details = traceback.format_exc()
+            print(id_, method, params_repr)
             print(details)
             this.ws.logger.error(err, exc_info=True)
             msg = {
