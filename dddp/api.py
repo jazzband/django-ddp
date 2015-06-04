@@ -687,9 +687,8 @@ class DDP(APIMixin):
         """Pre change (save/delete) signal handler."""
         if self._in_migration:
             return
-        # mod_name = model_name(sender)
-        # if mod_name.split('.', 1)[0] in ('migrations', 'dddp'):
-        #     return  # never send migration or DDP internal models
+        if model_name(sender).split('.', 1)[0] in ('migrations', 'dddp'):
+            return  # never send migration or DDP internal models
         obj = kwargs['instance']
         using = kwargs['using']
         self._ddp_subscribers.setdefault(
