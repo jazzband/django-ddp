@@ -1,6 +1,12 @@
 Change Log
 ==========
 
+0.8.0
+-----
+* Add `dddp.server` Django app to serve Meteor application files.
+* Show input params after traceback if exception occurs in API methods.
+* Small pylint cleanups.
+
 0.7.0
 -----
 * Refactor serialization to improve performance through reduced number 
