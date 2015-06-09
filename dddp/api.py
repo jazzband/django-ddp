@@ -351,10 +351,6 @@ class Collection(APIMixin):
             in self.field_schema()
         }
 
-    def serialize(self, obj, data):
-        """Default implementation for object serializer."""
-        return data
-
     def serialize(self, obj, meteor_ids):
         """Generate a DDP msg for obj with specified msg type."""
         # check for F expressions
@@ -612,6 +608,7 @@ class DDP(APIMixin):
         except KeyError:
             this.error('Unknown method: %s' % method)
             return
+        params_repr = repr(params)
         try:
             result = handler(*params)
             msg = {'msg': 'result', 'id': id_}
@@ -620,6 +617,7 @@ class DDP(APIMixin):
             this.send(msg)
         except Exception, err:  # log error+stack trace -> pylint: disable=W0703
             details = traceback.format_exc()
+            print(id_, method, params_repr)
             print(details)
             this.ws.logger.error(err, exc_info=True)
             msg = {
@@ -689,9 +687,8 @@ class DDP(APIMixin):
         """Pre change (save/delete) signal handler."""
         if self._in_migration:
             return
-        # mod_name = model_name(sender)
-        # if mod_name.split('.', 1)[0] in ('migrations', 'dddp'):
-        #     return  # never send migration or DDP internal models
+        if model_name(sender).split('.', 1)[0] in ('migrations', 'dddp'):
+            return  # never send migration or DDP internal models
         obj = kwargs['instance']
         using = kwargs['using']
         self._ddp_subscribers.setdefault(
@@ -815,10 +812,9 @@ class DDP(APIMixin):
             obj.pk, collections.defaultdict(set),
         )
         try:
-            ws = this.ws
             my_connection_id = this.ws.connection.pk
         except AttributeError:
-            ws = my_connection_id = None
+            my_connection_id = None
         meteor_ids = {}
         for col in set(old_col_connection_ids).union(new_col_connection_ids):
             old_connection_ids = old_col_connection_ids[col]
@@ -836,7 +832,7 @@ class DDP(APIMixin):
                     payload['_sender'] = my_connection_id
                     if my_connection_id in connection_ids:
                         # msg must go to connection that initiated the change
-                        payload['_tx_id'] = ws.get_tx_id()
+                        payload['_tx_id'] = this.ws.get_tx_id()
                 cursor = connections[using].cursor()
                 cursor.execute(
                     'NOTIFY "ddp", %s',
