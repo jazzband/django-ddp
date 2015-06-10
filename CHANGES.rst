@@ -1,6 +1,11 @@
 Change Log
 ==========
 
+0.8.1
+-----
+* Add missing dependency on `pybars3` used to render boilerplate HTML 
+  template when serving Meteor application files.
+
 0.8.0
 -----
 * Add `dddp.server` Django app to serve Meteor application files.
