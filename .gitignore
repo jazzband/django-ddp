@@ -55,3 +55,6 @@ target/
 
 # Rope
 .ropeproject/
+
+# Editor cruft
+*.swp

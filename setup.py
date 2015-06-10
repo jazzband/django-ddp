@@ -5,7 +5,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='django-ddp',
-    version='0.8.0',
+    version='0.8.1',
     description=__doc__,
     long_description=open('README.rst').read(),
     author='Tyson Clugg',
@@ -21,6 +21,7 @@ setup(
         'meteor-ejson>=1.0',
         'psycogreen>=1.0',
         'django-dbarray>=0.2',
+        'pybars3>=0.9.1',
     ],
     entry_points={
         'console_scripts': [
