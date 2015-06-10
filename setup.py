@@ -21,6 +21,7 @@ setup(
         'meteor-ejson>=1.0',
         'psycogreen>=1.0',
         'django-dbarray>=0.2',
+        'pybars3>=0.9.1',
     ],
     entry_points={
         'console_scripts': [
