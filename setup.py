@@ -14,10 +14,10 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        'Django>=1.7,<1.8',
+        'Django>=1.7',
         'psycopg2>=2.5.4',
         'gevent>=1.0',
-        'gevent-websocket>=0.9',
+        'gevent-websocket>=0.9,!=0.9.4',
         'meteor-ejson>=1.0',
         'psycogreen>=1.0',
         'django-dbarray>=0.2',

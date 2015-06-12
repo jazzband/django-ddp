@@ -11,8 +11,11 @@ import dbarray
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import connection, connections
-from django.db.models import aggregates, Q
-from django.db.models.expressions import ExpressionNode
+from django.db.models import aggregates, Q, Expression
+try:
+    from django.db.models.expressions import ExpressionNode
+except ImportError:
+    ExpressionNode = None
 from django.db.models.sql import aggregates as sql_aggregates
 from django.utils.encoding import force_text
 from django.db import DatabaseError
@@ -353,11 +356,14 @@ class Collection(APIMixin):
 
     def serialize(self, obj, meteor_ids):
         """Generate a DDP msg for obj with specified msg type."""
-        # check for F expressions
-        exps = [
-            name for name, val in vars(obj).items()
-            if isinstance(val, ExpressionNode)
-        ]
+        if ExpressionNode is None:
+            exps = False
+        else:
+            # check for F expressions
+            exps = [
+                name for name, val in vars(obj).items()
+                if isinstance(val, ExpressionNode)
+            ]
         if exps:
             # clone/update obj with values but only for the expression fields
             obj = deepcopy(obj)

@@ -1,16 +1,22 @@
 """Django DDP utils for DDP messaging."""
 from copy import deepcopy
 from dddp import THREAD_LOCAL as this, REMOVED
-from django.db.models.expressions import ExpressionNode
+try:
+    from django.db.models.expressions import ExpressionNode
+except AttributeError:
+    ExpressionNode = None
 
 
 def obj_change_as_msg(obj, msg):
     """Generate a DDP msg for obj with specified msg type."""
-    # check for F expressions
-    exps = [
-        name for name, val in vars(obj).items()
-        if isinstance(val, ExpressionNode)
-    ]
+    if ExpressionNode is None:
+        exps = False
+    else:
+        # check for F expressions
+        exps = [
+            name for name, val in vars(obj).items()
+            if isinstance(val, ExpressionNode)
+        ]
     if exps:
         # clone and update obj with values but only for the expression fields
         obj = deepcopy(obj)
