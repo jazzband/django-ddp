@@ -18,11 +18,12 @@ Peer servers subscribe to aggregate broadcast events which are de-multiplexed an
 
 Limitations
 -----------
-The current release series only supports DDP via WebSockets_.  Future
-development may resolve this by using SockJS, to support browsers that
-don't have WebSockets.
+* No support for the SockJS protocol to support browsers that
+  don't have WebSockets_ (see http://caniuse.com/websockets for
+  supported browsers).
 
-Changes must be made via the Django ORM as django-ddp uses `Django signals`_ to receive model save/update signals.
+* Changes must be made via the Django ORM as django-ddp uses `Django
+  signals`_ to receive model save/update signals.
 
 
 Installation
