@@ -1,9 +1,18 @@
 Change Log
 ==========
 
+0.9.0
+-----
+* Added Django 1.8 compatibility.  The current implementation has a
+  hackish (but functional) implementation to use PostgreSQL's
+  `array_agg` function.  Pull requests are welcome.
+* Retained compatibility with Django 1.7, though we still depend on the
+  `dbarray` package for this even though not strictly required with
+  Django 1.8.  Once again, pull requests are welcome.
+
 0.8.1
 -----
-* Add missing dependency on `pybars3` used to render boilerplate HTML 
+* Add missing dependency on `pybars3` used to render boilerplate HTML
   template when serving Meteor application files.
 
 0.8.0
@@ -14,7 +23,7 @@ Change Log
 
 0.7.0
 -----
-* Refactor serialization to improve performance through reduced number 
+* Refactor serialization to improve performance through reduced number
   of database queries, especially on sub/unsub.
 * Fix login/logout user subscription, now emitting user `added`/
   `removed` upon `login`/`logout` respectively.
@@ -28,9 +37,9 @@ Change Log
 -----
 * Send `removed` messages when client unsubscribes from publications.
 * Add support for SSL options and --settings=SETTINGS args in dddp tool.
-* Add `optional` and `label` attributes to ManyToManyField simple 
+* Add `optional` and `label` attributes to ManyToManyField simple
   schema.
-* Check order of added/changed when emitting WebSocket frames rather 
+* Check order of added/changed when emitting WebSocket frames rather
   than when queuing messages.
 * Move test projects into path that can be imported post install.
 
@@ -40,7 +49,7 @@ Change Log
 
 0.6.2
 -----
-* Bugfix issue where DDP connection thread stops sending messages after 
+* Bugfix issue where DDP connection thread stops sending messages after
   changing item that has subscribers for other connections but not self.
 
 0.6.1
@@ -49,7 +58,7 @@ Change Log
 * Dump stack trace to console on error for easier debugging DDP apps.
 * Fix handing of F expressions in object change handler.
 * Send `nosub` in response to invalid subscription request.
-* Per connection tracking of sent objects so changed/added sent 
+* Per connection tracking of sent objects so changed/added sent
   appropriately.
 
 0.6.0
