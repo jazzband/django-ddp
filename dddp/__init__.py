@@ -26,10 +26,9 @@ REMOVED = 'removed'
 
 def greenify():
     """Patch threading and psycopg2 modules for green threads."""
-    if 'threading' in sys.modules:
+    from gevent.monkey import patch_all, saved
+    if ('threading' in sys.modules) and ('threading' not in saved):
         raise Exception('threading module loaded before patching!')
-
-    from gevent.monkey import patch_all
     patch_all()
 
     from psycogreen.gevent import patch_psycopg
