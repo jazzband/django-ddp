@@ -4,11 +4,8 @@ from __future__ import print_function
 
 from django.apps import AppConfig
 from django.conf import settings, ImproperlyConfigured
-from django.db import DatabaseError
-from django.db.models import signals
 
 from dddp import autodiscover
-from dddp.models import Connection
 
 
 class DjangoDDPConfig(AppConfig):

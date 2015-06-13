@@ -12,7 +12,10 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import connection, connections
 from django.db.models import aggregates, Q
-from django.db.models.expressions import ExpressionNode
+try:
+    from django.db.models.expressions import ExpressionNode
+except ImportError:
+    from django.db.models import Expression as ExpressionNode
 from django.db.models.sql import aggregates as sql_aggregates
 from django.utils.encoding import force_text
 from django.db import DatabaseError
@@ -48,6 +51,7 @@ class Array(aggregates.Aggregate):
     """Array aggregate function."""
 
     func = 'ARRAY'
+    function = 'array_agg'
     name = 'Array'
 
     def add_to_query(self, query, alias, col, source, is_summary):
@@ -64,9 +68,17 @@ class Array(aggregates.Aggregate):
                 return 'ArrayType'
 
         new_source = ArrayField()
-        super(Array, self).add_to_query(
-            query, alias, col, new_source, is_summary,
-        )
+        try:
+            super(Array, self).add_to_query(
+                query, alias, col, new_source, is_summary,
+            )
+        except AttributeError:
+            query.aggregates[alias] = new_source
+
+    def convert_value(self, value, expression, connection, context):
+        if not value:
+            return []
+        return value
 
 
 def api_endpoint(path_or_func):
