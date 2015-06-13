@@ -57,6 +57,8 @@ If you'd like support for the Meteor Accounts package (ie: login/logout
 with django.contrib.auth) consult the section on authentication below
 and use the following line instead:
 
+.. code:: python
+
     # settings.py
     ...
     INSTALLED_APPS = list(INSTALLED_APPS) + ['dddp', 'dddp.accounts']
