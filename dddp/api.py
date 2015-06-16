@@ -10,6 +10,7 @@ import traceback
 import dbarray
 from django.conf import settings
 from django.contrib.auth import get_user_model
+import django.contrib.postgres.fields
 from django.db import connection, connections
 from django.db.models import aggregates, Q
 try:
@@ -390,6 +391,8 @@ class Collection(APIMixin):
                 fields[field.column] = get_meteor_id(
                     rel.to, fields.pop(field.name),
                 )
+            elif isinstance(field, django.contrib.postgres.fields.ArrayField):
+                fields[field.name] = field.to_python(fields.pop(field.name))
         for field in meta.local_many_to_many:
             fields['%s_ids' % field.name] = get_meteor_ids(
                 field.rel.to, fields.pop(field.name),

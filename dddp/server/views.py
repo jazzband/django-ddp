@@ -46,4 +46,4 @@ class MeteorView(View):
         except KeyError:
             print(path)
             return HttpResponse(self.app.html)
-            #raise Http404
+            # raise Http404
