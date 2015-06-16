@@ -1,6 +1,11 @@
 Change Log
 ==========
 
+0.9.1
+-----
+* Added support for django.contrib.postres.fields.ArrayField 
+  serialization.
+
 0.9.0
 -----
 * Added Django 1.8 compatibility.  The current implementation has a
