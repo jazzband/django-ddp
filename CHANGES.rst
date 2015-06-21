@@ -1,6 +1,10 @@
 Change Log
 ==========
 
+0.9.2
+-----
+* Use HTTPS for DDP URL if settings.SECURE_SSL_REDIRECT is set.
+
 0.9.1
 -----
 * Added support for django.contrib.postres.fields.ArrayField 

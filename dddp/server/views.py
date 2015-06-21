@@ -2,6 +2,7 @@
 from __future__ import print_function, absolute_import
 from ejson import dumps
 from django.apps import apps
+from django.conf import settings
 from django.http import HttpResponse
 from django.views.generic import View
 
@@ -31,6 +32,12 @@ class MeteorView(View):
                 'ROOT_URL': request.build_absolute_uri('/'),
                 'ROOT_URL_PATH_PREFIX': '',
             }
+            # Use HTTPS instead of HTTP if SECURE_SSL_REDIRECT is set
+            if config['DDP_DEFAULT_CONNECTION_URL'].startswith('http:') \
+                    and settings.SECURE_SSL_REDIRECT:
+                config['DDP_DEFAULT_CONNECTION_URL'] = 'https:%s' % (
+                    config['DDP_DEFAULT_CONNECTION_URL'].split(':', 1)[1],
+                )
             config.update(self.runtime_config)
             return HttpResponse(
                 '__meteor_runtime_config__ = %s;' % dumps(config),
