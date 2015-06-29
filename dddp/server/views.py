@@ -1,5 +1,5 @@
 """Django DDP Server views."""
-from __future__ import print_function, absolute_import
+from __future__ import print_function, absolute_import, unicode_literals
 from ejson import dumps
 from django.apps import apps
 from django.conf import settings

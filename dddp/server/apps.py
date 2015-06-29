@@ -2,6 +2,7 @@
 from __future__ import print_function, absolute_import, unicode_literals
 
 import io
+import mimetypes
 import os.path
 
 from django.apps import AppConfig
@@ -58,6 +59,7 @@ class ServerConfig(AppConfig):
 
     def ready(self):
         """Configure Django DDP server app."""
+        mimetypes.init()  # read and process /etc/mime.types
         self.url_map = {}
 
         try:
@@ -147,12 +149,9 @@ class ServerConfig(AppConfig):
                 self.client_map[item['url']] = item
                 self.url_map[item['url']] = (
                     item['path_full'],
-                    {
-                        'js': 'text/javascript',
-                        'css': 'text/css',
-                    }.get(
-                        item['type'], 'application/octet-stream',
-                    ),
+                    mimetypes.guess_type(
+                        item['path_full'],
+                    )[0] or 'application/octet-stream',
                 )
             elif item['where'] == 'internal':
                 self.internal_map[item['type']] = item
