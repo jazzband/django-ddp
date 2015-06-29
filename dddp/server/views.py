@@ -29,7 +29,9 @@ class MeteorView(View):
         if path == '/meteor_runtime_config.js':
             config = {
                 'DDP_DEFAULT_CONNECTION_URL': request.build_absolute_uri('/'),
-                'ROOT_URL': request.build_absolute_uri('/'),
+                'ROOT_URL': request.build_absolute_uri(
+                    '%s/' % self.runtime_config.get('ROOT_URL_PATH_PREFIX', ''),
+                ),
                 'ROOT_URL_PATH_PREFIX': '',
             }
             # Use HTTPS instead of HTTP if SECURE_SSL_REDIRECT is set
