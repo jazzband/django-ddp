@@ -1,6 +1,11 @@
 Change Log
 ==========
 
+0.9.3
+-----
+* Include ROOT_URL_PATH_PREFIX in ROOT_URL when serving Meteor build 
+  files.
+
 0.9.2
 -----
 * Use HTTPS for DDP URL if settings.SECURE_SSL_REDIRECT is set.
