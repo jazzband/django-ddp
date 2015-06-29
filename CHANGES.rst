@@ -1,6 +1,11 @@
 Change Log
 ==========
 
+0.9.4
+-----
+* Use mimetypes module to correctly guess mime types for Meteor files 
+  being served.
+
 0.9.3
 -----
 * Include ROOT_URL_PATH_PREFIX in ROOT_URL when serving Meteor build 
