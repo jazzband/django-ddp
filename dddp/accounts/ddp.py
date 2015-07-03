@@ -52,6 +52,7 @@ class Users(Collection):
             'username': obj.get_username(),
             'emails': [],
             'profile': profile,
+            'permissions': sorted(self.model.get_all_permissions(obj)),
         }
 
         # clear out sensitive data
