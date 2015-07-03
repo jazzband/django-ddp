@@ -1,6 +1,10 @@
 Change Log
 ==========
 
+0.9.5
+-----
+* Include array of `permissions` on User publication.
+
 0.9.4
 -----
 * Use mimetypes module to correctly guess mime types for Meteor files 
