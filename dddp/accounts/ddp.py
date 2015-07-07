@@ -442,10 +442,10 @@ class Auth(APIMixin):
         )
 
     @api_endpoint('resetPassword')
-    def reset_password(self, params):
+    def reset_password(self, token, new_password):
         """Reset password using a token received in email then logs user in."""
-        user, _ = self.validated_user_and_session(params['token'])
-        user.set_password(params['newPassword'])
+        user, _ = self.validated_user_and_session(token)
+        user.set_password(new_password)
         user.save()
         auth.login(this.request, user)
         self.update_subs(user.pk)
