@@ -1,6 +1,11 @@
 Change Log
 ==========
 
+0.9.6
+-----
+* Correct method signature to match Meteor Accounts.resetPassword in 
+  dddp.accounts submodule.
+
 0.9.5
 -----
 * Include array of `permissions` on User publication.

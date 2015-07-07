@@ -170,6 +170,9 @@ Contributors
 `Tyson Clugg <https://github.com/tysonclugg>`_
     * Author, conceptual design.
 
+`Yan Le <https://github.com/janusle>`_
+    * Validate and bug fix dddp.accounts submodule.
+
 `MEERQAT <http://meerqat.com.au/>`_
     * Project sponsor - many thanks for allowing this to be released under an open source license!
 
