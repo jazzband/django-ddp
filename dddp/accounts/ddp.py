@@ -7,9 +7,11 @@ See http://docs.meteor.com/#/full/accounts_api for details of each method.
 """
 from binascii import Error
 import collections
+import hashlib
 
 from ejson import loads, dumps
 
+from django.conf import settings
 from django.contrib import auth
 from django.contrib.sessions.backends.db import SessionStore
 from django.contrib.auth.signals import user_login_failed
@@ -26,6 +28,16 @@ create_user = Signal(providing_args=['request', 'params'])
 password_changed = Signal(providing_args=['request', 'user'])
 forgot_password = Signal(providing_args=['request', 'user', 'token', 'expiry'])
 password_reset = Signal(providing_args=['request', 'user'])
+
+
+class HashPurpose(object):
+
+    """HashPurpose enumeration."""
+
+    PASSWORD_RESET = 'password_reset'
+    RESUME_LOGIN = 'resume_login'
+    CHANGE_EMAIL = 'change_email'
+    CREATE_USER = 'create_user'
 
 
 class Users(Collection):
@@ -201,36 +213,48 @@ class Auth(APIMixin):
             )
         raise MeteorError(403, 'Authentication failed.')
 
-    def validated_user_and_session(self, token):
+    @staticmethod
+    def get_auth_hash(user, purpose):
+        """Generate a user hash for a particular purpose."""
+        return hashlib.sha1(
+            ':'.join([
+                settings.SECRET_KEY,
+                user.get_session_auth_hash(),
+                purpose,
+            ])
+        ).hexdigest()
+
+    @classmethod
+    def validated_user_and_session(cls, token, purpose):
         """Resolve and validate auth token, returns user and session objects."""
         try:
             username, session_key, auth_hash = loads(token.decode('base64'))
         except (ValueError, Error):
-            self.auth_failed(token=token)
+            cls.auth_failed(token=token)
         try:
-            user = self.user_model.objects.get(**{
-                self.user_model.USERNAME_FIELD: username,
+            user = cls.user_model.objects.get(**{
+                cls.user_model.USERNAME_FIELD: username,
             })
             user.backend = 'django.contrib.auth.backends.ModelBackend'
-        except self.user_model.DoesNotExist:
-            self.auth_failed(username=username, token=token)
-        if user.get_session_auth_hash() != auth_hash:
-            self.auth_failed(username=username, token=token)
+        except cls.user_model.DoesNotExist:
+            cls.auth_failed(username=username, token=token)
+        if cls.get_auth_hash(user, purpose) != auth_hash:
+            cls.auth_failed(username=username, token=token)
         session = SessionStore(
             session_key=session_key,
         )
         if session.get_expiry_date() <= timezone.now():
-            self.auth_failed(username=username, token=token)
+            cls.auth_failed(username=username, token=token)
         return (user, session)
 
-    @staticmethod
-    def get_user_token(user, session_key, expiry_date):
+    @classmethod
+    def get_user_token(cls, user, session_key, expiry_date, purpose):
         """Return login token info for given user."""
         token = ''.join(
             dumps([
                 user.get_username(),
                 session_key,
-                user.get_session_auth_hash(),
+                cls.get_auth_hash(user, purpose),
             ]).encode('base64').split('\n')
         )
         return {
@@ -330,6 +354,7 @@ class Auth(APIMixin):
             user=user,
             session_key=this.request.session.session_key,
             expiry_date=this.request.session.get_expiry_date(),
+            purpose=HashPurpose.CREATE_USER,
         )
 
     @api_endpoint
@@ -367,6 +392,7 @@ class Auth(APIMixin):
                     user=user,
                     session_key=this.request.session.session_key,
                     expiry_date=this.request.session.get_expiry_date(),
+                    purpose=HashPurpose.RESUME_LOGIN,
                 )
 
         # Call to `authenticate` was unable to verify the username and password.
@@ -386,8 +412,10 @@ class Auth(APIMixin):
         # never allow insecure login
         self.check_secure()
 
-        # pull the username, session_key and session_auth_hash from the token
-        user, session = self.validated_user_and_session(params['resume'])
+        # pull the username, session_key and auth_hash from the token
+        user, session = self.validated_user_and_session(
+            params['resume'], purpose=HashPurpose.RESUME_LOGIN,
+        )
 
         auth.login(this.request, user)
         self.update_subs(user.pk)
@@ -396,6 +424,7 @@ class Auth(APIMixin):
             user=user,
             session_key=session.session_key,
             expiry_date=session.get_expiry_date(),
+            purpose=HashPurpose.RESUME_LOGIN,
         )
 
     @api_endpoint('changePassword')
@@ -431,6 +460,7 @@ class Auth(APIMixin):
         token = self.get_user_token(
             user=user, session_key=this.request.session.session_key,
             expiry_date=expiry_date,
+            purpose=HashPurpose.PASSWORD_RESET,
         )
 
         forgot_password.send(
@@ -444,7 +474,9 @@ class Auth(APIMixin):
     @api_endpoint('resetPassword')
     def reset_password(self, token, new_password):
         """Reset password using a token received in email then logs user in."""
-        user, _ = self.validated_user_and_session(token)
+        user, _ = self.validated_user_and_session(
+            token, purpose=HashPurpose.PASSWORD_RESET,
+        )
         user.set_password(new_password)
         user.save()
         auth.login(this.request, user)
