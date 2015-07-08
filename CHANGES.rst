@@ -1,6 +1,11 @@
 Change Log
 ==========
 
+0.9.9
+-----
+* Match return values for Accounts.changePassword and 
+  Accounts.changePassword methods in dddp.accounts submodule.
+
 0.9.8
 -----
 * Fix method signature for Accouts.changePassword.
