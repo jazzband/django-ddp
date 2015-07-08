@@ -428,16 +428,16 @@ class Auth(APIMixin):
         )
 
     @api_endpoint('changePassword')
-    def change_password(self, params):
+    def change_password(self, old_password, new_password):
         """Change password."""
         user = auth.authenticate(
             username=this.request.user.get_username(),
-            password=self.get_password(params['oldPassword']),
+            password=self.get_password(old_password),
         )
         if user is None:
             self.auth_failed()
         else:
-            user.set_password(self.get_password(params['newPassword']))
+            user.set_password(self.get_password(new_password))
             user.save()
             password_changed.send(
                 sender=__name__,
