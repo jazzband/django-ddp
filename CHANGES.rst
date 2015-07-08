@@ -1,6 +1,10 @@
 Change Log
 ==========
 
+0.9.10
+------
+* Fix bug in Accounts.forgotPassword implementation.
+
 0.9.9
 -----
 * Match return values for Accounts.changePassword and 
