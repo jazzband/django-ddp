@@ -284,7 +284,7 @@ class Auth(APIMixin):
             if key == 'username' or (key == self.user_model.USERNAME_FIELD):
                 # username provided directly
                 return val
-            elif key == 'emails.address':
+            elif key in ('email', 'emails.address'):
                 email_field = getattr(self.user_model, 'EMAIL_FIELD', 'email')
                 if self.user_model.USERNAME_FIELD == email_field:
                     return val  # email is username
@@ -449,7 +449,7 @@ class Auth(APIMixin):
     @api_endpoint('forgotPassword')
     def forgot_password(self, params):
         """Request password reset email."""
-        username = self.get_username(params['user'])
+        username = self.get_username(params)
         try:
             user = self.user_model.objects.get(**{
                 self.user_model.USERNAME_FIELD: username,
