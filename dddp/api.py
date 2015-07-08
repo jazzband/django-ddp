@@ -197,6 +197,7 @@ class Collection(APIMixin):
     qs_filter = None
     order_by = None
     user_rel = None
+    always_allow_superusers = True
 
     def get_queryset(self, base_qs=None):
         """Return a filtered, ordered queryset for this collection."""
@@ -237,9 +238,9 @@ class Collection(APIMixin):
             )
         return qs
 
-    def user_ids_for_object(self, obj, base_qs=None, include_superusers=True):
+    def user_ids_for_object(self, obj):
         """Find user IDs related to object/pk in queryset."""
-        qs = base_qs or self.queryset
+        qs = self.queryset
         if self.user_rel:
             user_ids = set()
             if obj.pk is None:
@@ -253,7 +254,7 @@ class Collection(APIMixin):
                 in enumerate(user_rels)
             }
 
-            if include_superusers:
+            if self.always_allow_superusers:
                 user_ids.update(
                     get_user_model().objects.filter(
                         is_superuser=True, is_active=True,
@@ -261,8 +262,12 @@ class Collection(APIMixin):
                 )
 
             for rel_user_ids in qs.filter(
-                    pk=hasattr(obj, 'pk') and obj.pk or obj,
-            ).annotate(**user_rel_map).values_list(*user_rel_map.keys()).get():
+                    pk=obj.pk,
+            ).annotate(
+                    **user_rel_map
+            ).values_list(
+                    *user_rel_map.keys()
+            ).get():
                 user_ids.update(rel_user_ids)
             user_ids.difference_update([None])
             return user_ids
