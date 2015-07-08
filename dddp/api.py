@@ -11,9 +11,10 @@ import dbarray
 from django.conf import settings
 from django.contrib.auth import get_user_model
 import django.contrib.postgres.fields
-from django.db import connection, connections
+from django.db import connections, router
 from django.db.models import aggregates, Q
 try:
+    # pylint: disable=E0611
     from django.db.models.expressions import ExpressionNode
 except ImportError:
     from django.db.models import Expression as ExpressionNode
@@ -47,6 +48,7 @@ class Sql(object):
 sql_aggregates.Array = Sql.Array
 
 
+# pylint: disable=W0223
 class Array(aggregates.Aggregate):
 
     """Array aggregate function."""
@@ -77,6 +79,7 @@ class Array(aggregates.Aggregate):
             query.aggregates[alias] = new_source
 
     def convert_value(self, value, expression, connection, context):
+        """Convert value from format returned by DB driver to Python value."""
         if not value:
             return []
         return value
@@ -264,9 +267,9 @@ class Collection(APIMixin):
             for rel_user_ids in qs.filter(
                     pk=obj.pk,
             ).annotate(
-                    **user_rel_map
+                **user_rel_map
             ).values_list(
-                    *user_rel_map.keys()
+                *user_rel_map.keys()
             ).get():
                 user_ids.update(rel_user_ids)
             user_ids.difference_update([None])
@@ -295,6 +298,7 @@ class Collection(APIMixin):
         }
         # Django supports model._meta -> pylint: disable=W0212
         meta = self.model._meta
+        connection = router.db_for_read(self.model.objects.none())
         for field in meta.local_fields:
             int_type = field.get_internal_type()
             schema = {
