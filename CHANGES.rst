@@ -1,6 +1,10 @@
 Change Log
 ==========
 
+0.9.7
+-----
+* Updated Accounts hashing to prevent cross-purposing auth tokens.
+
 0.9.6
 -----
 * Correct method signature to match Meteor Accounts.resetPassword in 
