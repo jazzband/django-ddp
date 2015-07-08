@@ -1,6 +1,10 @@
 Change Log
 ==========
 
+0.9.8
+-----
+* Fix method signature for Accouts.changePassword.
+
 0.9.7
 -----
 * Updated Accounts hashing to prevent cross-purposing auth tokens.
