@@ -444,6 +444,7 @@ class Auth(APIMixin):
                 request=this.request,
                 user=user,
             )
+            return {"passwordChanged": True}
 
     @api_endpoint('forgotPassword')
     def forgot_password(self, params):
@@ -481,6 +482,7 @@ class Auth(APIMixin):
         user.save()
         auth.login(this.request, user)
         self.update_subs(user.pk)
+        return {"userId": get_meteor_id(this.request.user)};
 
 
 API.register([Users, LoginPublication, Auth])
