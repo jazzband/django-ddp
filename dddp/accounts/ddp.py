@@ -190,7 +190,7 @@ class Auth(APIMixin):
                     # collection not included pre-auth, everything is added.
                     pass
                 for obj in qs:
-                    this.ws.send(col.obj_change_as_msg(obj, ADDED))
+                    this.ws.send(col_post.obj_change_as_msg(obj, ADDED))
 
             # second pass, send `removed` for objs unique to `pre`
             for col_pre, qs in pre.items():
@@ -201,7 +201,7 @@ class Auth(APIMixin):
                     # collection not included post-auth, everything is removed.
                     pass
                 for obj in qs:
-                    this.ws.send(col.obj_change_as_msg(obj, REMOVED))
+                    this.ws.send(col_pre.obj_change_as_msg(obj, REMOVED))
 
     @staticmethod
     def auth_failed(**credentials):

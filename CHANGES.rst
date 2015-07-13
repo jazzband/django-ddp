@@ -1,6 +1,10 @@
 Change Log
 ==========
 
+0.9.11
+------
+* Fix bug in post login/logout subscription handling.
+
 0.9.10
 ------
 * Fix bug in Accounts.forgotPassword implementation.
