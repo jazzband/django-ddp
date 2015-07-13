@@ -104,7 +104,7 @@ class SubscriptionCollection(admin.ModelAdmin):
 
 
 for name, attr in vars(models).items():
-    if hasattr(attr, '_meta'):
+    if hasattr(attr, '_meta') and not getattr(attr._meta, 'abstract'):
         model_admin = locals().get(name, None)
         if model_admin is not False:
             admin.site.register(attr, model_admin)
