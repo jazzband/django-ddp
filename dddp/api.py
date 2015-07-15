@@ -298,7 +298,7 @@ class Collection(APIMixin):
         }
         # Django supports model._meta -> pylint: disable=W0212
         meta = self.model._meta
-        connection = router.db_for_read(self.model.objects.none())
+        connection = connections[router.db_for_read(self.model.objects.none())]
         for field in meta.local_fields:
             int_type = field.get_internal_type()
             schema = {
