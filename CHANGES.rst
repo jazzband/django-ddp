@@ -1,6 +1,11 @@
 Change Log
 ==========
 
+0.9.12
+------
+* Bugfix /app.model/schema helper method on collections to work with 
+  more model field types.
+
 0.9.11
 ------
 * Fix bug in post login/logout subscription handling.
