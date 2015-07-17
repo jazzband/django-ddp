@@ -44,6 +44,7 @@ def get_meteor_id(obj_or_model, obj_pk=None):
             object_id=obj_pk,
             meteor_id=meteor_random_id('/collection/%s' % meta),
         ).meteor_id
+get_meteor_id.short_description = 'DDP ID'  # nice title for admin list_display
 
 
 @transaction.atomic
@@ -77,7 +78,6 @@ def get_object_id(model, meteor_id):
     if model is ObjectMapping:
         # this doesn't make sense - raise TypeError
         raise TypeError("Can't map ObjectMapping instances through self.")
-    # Django model._meta is now public API -> pylint: disable=W0212
     content_type = ContentType.objects.get_for_model(model)
     return ObjectMapping.objects.filter(
         content_type=content_type,
