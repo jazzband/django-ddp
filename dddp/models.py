@@ -83,6 +83,26 @@ def get_object_id(model, meteor_id):
 
 
 @transaction.atomic
+def get_object_ids(model, meteor_ids):
+    """Return all object IDs for the given meteor_ids."""
+    if model is ObjectMapping:
+        # this doesn't make sense - raise TypeError
+        raise TypeError("Can't map ObjectMapping instances through self.")
+    content_type = ContentType.objects.get_for_model(model)
+    result = collections.OrderedDict(
+        (str(meteor_id), None)
+        for meteor_id
+        in meteor_ids
+    )
+    for meteor_id, object_id in ObjectMapping.objects.filter(
+            content_type=content_type,
+            meteor_id__in=meteor_ids,
+    ).values_list('meteor_id', 'object_id'):
+        result[meteor_id] = object_id
+    return result
+
+
+@transaction.atomic
 def get_object(model, meteor_id, *args, **kwargs):
     """Return an object for the given meteor_id."""
     return model.objects.filter(*args, **kwargs).get(
