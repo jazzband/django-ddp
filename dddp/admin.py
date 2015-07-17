@@ -103,8 +103,7 @@ class SubscriptionCollection(admin.ModelAdmin):
     ]
 
 
-for name, attr in vars(models).items():
-    if hasattr(attr, '_meta'):
-        model_admin = locals().get(name, None)
-        if model_admin is not False:
-            admin.site.register(attr, model_admin)
+admin.site.register(models.ObjectMapping, ObjectMapping)
+admin.site.register(models.Subscription, Subscription)
+admin.site.register(models.SubscriptionCollection, SubscriptionCollection)
+admin.site.register(models.Connection)

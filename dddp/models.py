@@ -5,6 +5,9 @@ import collections
 
 from django.db import models, transaction
 from django.conf import settings
+from django.contrib.contenttypes.fields import (
+    GenericRelation, GenericForeignKey,
+)
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.encoding import python_2_unicode_compatible
@@ -41,6 +44,7 @@ def get_meteor_id(obj_or_model, obj_pk=None):
             object_id=obj_pk,
             meteor_id=meteor_random_id('/collection/%s' % meta),
         ).meteor_id
+get_meteor_id.short_description = 'DDP ID'  # nice title for admin list_display
 
 
 @transaction.atomic
@@ -74,12 +78,31 @@ def get_object_id(model, meteor_id):
     if model is ObjectMapping:
         # this doesn't make sense - raise TypeError
         raise TypeError("Can't map ObjectMapping instances through self.")
-    # Django model._meta is now public API -> pylint: disable=W0212
     content_type = ContentType.objects.get_for_model(model)
     return ObjectMapping.objects.filter(
         content_type=content_type,
         meteor_id=meteor_id,
     ).values_list('object_id', flat=True).get()
+
+
+@transaction.atomic
+def get_object_ids(model, meteor_ids):
+    """Return all object IDs for the given meteor_ids."""
+    if model is ObjectMapping:
+        # this doesn't make sense - raise TypeError
+        raise TypeError("Can't map ObjectMapping instances through self.")
+    content_type = ContentType.objects.get_for_model(model)
+    result = collections.OrderedDict(
+        (str(meteor_id), None)
+        for meteor_id
+        in meteor_ids
+    )
+    for meteor_id, object_id in ObjectMapping.objects.filter(
+            content_type=content_type,
+            meteor_id__in=meteor_ids,
+    ).values_list('meteor_id', 'object_id'):
+        result[meteor_id] = object_id
+    return result
 
 
 @transaction.atomic
@@ -111,7 +134,7 @@ class ObjectMapping(models.Model):
     meteor_id = AleaIdField()
     content_type = models.ForeignKey(ContentType, db_index=True)
     object_id = models.CharField(max_length=255)
-    # content_object = GenericForeignKey('content_type', 'object_id')
+    content_object = GenericForeignKey('content_type', 'object_id')
 
     def __str__(self):
         """Text representation of a mapping."""
@@ -207,3 +230,16 @@ class SubscriptionCollection(models.Model):
             self.collection_name,
             self.model_name,
         )
+
+
+class ObjectMappingMixin(models.Model):
+
+    """Model mixin that provides GenericRelation back to ObjectMapping model."""
+
+    object_mapping = GenericRelation(ObjectMapping)
+
+    class Meta(object):
+
+        """ObjectMappingMixin model meta options."""
+
+        abstract = True
