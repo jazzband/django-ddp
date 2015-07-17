@@ -1,6 +1,12 @@
 Change Log
 ==========
 
+0.9.13
+------
+* Add dddp.models.get_object_ids helper function.
+* Add ObjectMappingMixini abstract model mixin providing
+  GenericRelation back to ObjectMapping model.
+
 0.9.12
 ------
 * Bugfix /app.model/schema helper method on collections to work with 
