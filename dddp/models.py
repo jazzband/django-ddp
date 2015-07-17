@@ -5,6 +5,9 @@ import collections
 
 from django.db import models, transaction
 from django.conf import settings
+from django.contrib.contenttypes.fields import (
+    GenericRelation, GenericForeignKey,
+)
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils.encoding import python_2_unicode_compatible
@@ -131,7 +134,7 @@ class ObjectMapping(models.Model):
     meteor_id = AleaIdField()
     content_type = models.ForeignKey(ContentType, db_index=True)
     object_id = models.CharField(max_length=255)
-    # content_object = GenericForeignKey('content_type', 'object_id')
+    content_object = GenericForeignKey('content_type', 'object_id')
 
     def __str__(self):
         """Text representation of a mapping."""
@@ -227,3 +230,16 @@ class SubscriptionCollection(models.Model):
             self.collection_name,
             self.model_name,
         )
+
+
+class ObjectMappingMixin(models.Model):
+
+    """Model mixin that provides GenericRelation back to ObjectMapping model."""
+
+    object_mapping = GenericRelation(ObjectMapping)
+
+    class Meta(object):
+
+        """ObjectMappingMixin model meta options."""
+
+        abstract = True
