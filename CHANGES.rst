@@ -1,6 +1,11 @@
 Change Log
 ==========
 
+0.9.14
+------
+* Fix ordering of user added vs login ready in dddp.accounts 
+  authentication methods.
+
 0.9.13
 ------
 * Add dddp.models.get_object_ids helper function.
