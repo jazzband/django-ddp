@@ -18,7 +18,7 @@ from django.contrib.auth.signals import user_login_failed
 from django.dispatch import Signal
 from django.utils import timezone
 
-from dddp import THREAD_LOCAL as this, ADDED, REMOVED
+from dddp import THREAD_LOCAL as this, ADDED, REMOVED, meteor_random_id
 from dddp.models import get_meteor_id, get_object, Subscription
 from dddp.api import API, APIMixin, api_endpoint, Collection, Publication
 from dddp.websocket import MeteorError
@@ -141,12 +141,18 @@ class Users(Collection):
         user.save()
 
 
-class LoginPublication(Publication):
+class LoginServiceConfiguration(Publication):
 
-    """Meteor Accounts emulation."""
+    """Published list of authenitcation providers and their configuration."""
 
     name = 'meteor.loginServiceConfiguration'
 
+    queries = []
+
+
+class LoggedInUser(Publication):
+
+    """Meteor auto publication for showing logged in user."""
     queries = [
         (Users.model.objects.all(), 'users'),
     ]
@@ -349,6 +355,7 @@ class Auth(APIMixin):
             username=user.get_username(), password=params['password'],
         )
         auth.login(this.request, user)
+        self.sub_user()
         self.update_subs(user.pk)
         return self.get_user_token(
             user=user,
@@ -361,6 +368,7 @@ class Auth(APIMixin):
     def logout(self):
         """Logout current user."""
         auth.logout(this.request)
+        self.unsub_user()
         self.update_subs(None)
 
     @api_endpoint
@@ -372,6 +380,28 @@ class Auth(APIMixin):
             return self.login_with_resume_token(params)
         else:
             self.auth_failed(**params)
+
+    def sub_user(self):
+        """Silent subscription (sans sub/nosub msg) to LoggedInUser pub."""
+        this.send_orig = this.send
+        this.send = self.send_alt
+        this.user_sub_id = meteor_random_id()
+        API.sub(this.user_sub_id, 'LoggedInUser')
+        this.send = this.send_orig
+
+    def unsub_user(self):
+        """Silent unsubscription (sans sub/nosub msg) from LoggedInUser pub."""
+        this.send_orig = this.send
+        this.send = self.send_alt
+        API.unsub(this.user_sub_id)
+        this.send = this.send_orig
+        del this.send_orig
+        del this.user_sub_id
+
+    def send_alt(self, msg):
+        """Alternative send for use within login method."""
+        if msg['msg'] not in ['ready', 'nosub']:
+            this.send_orig(msg)
 
     def login_with_password(self, params):
         """Authenticate using credentials supplied in params."""
@@ -386,6 +416,7 @@ class Auth(APIMixin):
             # the password verified for the user
             if user.is_active:
                 auth.login(this.request, user)
+                self.sub_user()
                 self.update_subs(user.pk)
                 this.request.session.save()
                 return self.get_user_token(
@@ -418,6 +449,7 @@ class Auth(APIMixin):
         )
 
         auth.login(this.request, user)
+        self.sub_user()
         self.update_subs(user.pk)
         this.request.session.save()
         return self.get_user_token(
@@ -481,8 +513,9 @@ class Auth(APIMixin):
         user.set_password(new_password)
         user.save()
         auth.login(this.request, user)
+        self.sub_user()
         self.update_subs(user.pk)
         return {"userId": get_meteor_id(this.request.user)};
 
 
-API.register([Users, LoginPublication, Auth])
+API.register([Users, LoginServiceConfiguration, LoggedInUser, Auth])
