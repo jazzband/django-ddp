@@ -566,18 +566,23 @@ class DDP(APIMixin):
     @api_endpoint
     def sub(self, id_, name, *params):
         """Create subscription, send matched objects that haven't been sent."""
+        return self.do_sub(id_, name, False, *params)
+
+    def do_sub(self, id_, name, silent, *params):
+        """Subscribe the current thread to the specified publication."""
         try:
             pub = self.get_pub_by_name(name)
         except KeyError:
-            this.send({
-                'msg': 'nosub',
-                'error': {
-                    'error': 404,
-                    'errorType': 'Meteor.Error',
-                    'message': 'Subscription not found [404]',
-                    'reason': 'Subscription not found',
-                },
-            })
+            if not silent:
+                this.send({
+                    'msg': 'nosub',
+                    'error': {
+                        'error': 404,
+                        'errorType': 'Meteor.Error',
+                        'message': 'Subscription not found [404]',
+                        'reason': 'Subscription not found',
+                    },
+                })
             return
         sub, created = Subscription.objects.get_or_create(
             connection_id=this.ws.connection.pk,
@@ -589,7 +594,8 @@ class DDP(APIMixin):
             },
         )
         if not created:
-            this.send({'msg': 'ready', 'subs': [id_]})
+            if not silent:
+                this.send({'msg': 'ready', 'subs': [id_]})
             return
         # re-read from DB so we can get transaction ID (xmin)
         sub = Subscription.objects.extra(**XMIN).get(pk=sub.pk)
@@ -606,11 +612,16 @@ class DDP(APIMixin):
             for obj in qs:
                 payload = col.obj_change_as_msg(obj, ADDED, meteor_ids)
                 this.send(payload)
-        this.send({'msg': 'ready', 'subs': [id_]})
+        if not silent:
+            this.send({'msg': 'ready', 'subs': [id_]})
 
     @api_endpoint
     def unsub(self, id_):
         """Remove a subscription."""
+        self.do_unsub(id_, False)
+
+    def do_unsub(self, id_, silent):
+        """Unsubscribe the current thread from the specified subscription id."""
         sub = Subscription.objects.get(
             connection=this.ws.connection, sub_id=id_,
         )
@@ -622,7 +633,8 @@ class DDP(APIMixin):
                 payload = col.obj_change_as_msg(obj, REMOVED, meteor_ids)
                 this.send(payload)
         sub.delete()
-        this.send({'msg': 'nosub', 'id': id_})
+        if not silent:
+            this.send({'msg': 'nosub', 'id': id_})
 
     @api_endpoint
     def method(self, method, params, id_):
