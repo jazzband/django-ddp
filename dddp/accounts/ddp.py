@@ -24,6 +24,8 @@ from dddp.api import API, APIMixin, api_endpoint, Collection, Publication
 from dddp.websocket import MeteorError
 
 
+# pylint dones't like lower case attribute names on modules, but it's the normal
+# thing to do for Django signal names.  --> pylint: disable=C0103
 create_user = Signal(providing_args=['request', 'params'])
 password_changed = Signal(providing_args=['request', 'user'])
 forgot_password = Signal(providing_args=['request', 'user', 'token', 'expiry'])
@@ -103,7 +105,7 @@ class Users(Collection):
         return data
 
     @staticmethod
-    def deserialize_profile(user, profile, key_prefix='', pop=False):
+    def deserialize_profile(profile, key_prefix='', pop=False):
         """De-serialize user profile fields into concrete model fields."""
         result = {}
         if pop:
@@ -126,12 +128,14 @@ class Users(Collection):
     @api_endpoint
     def update(self, selector, update, options=None):
         """Update user data."""
+        # we're ignoring the `options` argument at this time
+        del options
         user = get_object(
             self.model, selector['_id'],
             pk=this.request.user.pk,
         )
         profile_update = self.deserialize_profile(
-            user, update['$set'], key_prefix='profile.', pop=True,
+            update['$set'], key_prefix='profile.', pop=True,
         )
         if len(update['$set']) != 0:
             raise MeteorError(400, 'Invalid update fields: %r')
@@ -153,6 +157,7 @@ class LoginServiceConfiguration(Publication):
 class LoggedInUser(Publication):
 
     """Meteor auto publication for showing logged in user."""
+
     queries = [
         (Users.model.objects.all(), 'users'),
     ]
@@ -165,7 +170,8 @@ class Auth(APIMixin):
     api_path_prefix = ''  # auth endpoints don't have a common prefix
     user_model = auth.get_user_model()
 
-    def update_subs(self, new_user_id):
+    @staticmethod
+    def update_subs(new_user_id):
         """Update subs to send added/removed for collections with user_rel."""
         for sub in Subscription.objects.filter(connection=this.ws.connection):
             params = loads(sub.params_ejson)
@@ -173,7 +179,7 @@ class Auth(APIMixin):
 
             # calculate the querysets prior to update
             pre = collections.OrderedDict([
-                (col, qs) for col, qs
+                (col, query) for col, query
                 in API.sub_unique_objects(sub, params, pub)
             ])
 
@@ -183,30 +189,32 @@ class Auth(APIMixin):
 
             # calculate the querysets after the update
             post = collections.OrderedDict([
-                (col, qs) for col, qs
+                (col, query) for col, query
                 in API.sub_unique_objects(sub, params, pub)
             ])
 
             # first pass, send `added` for objs unique to `post`
-            for col_post, qs in post.items():
+            for col_post, query in post.items():
                 try:
                     qs_pre = pre[col_post]
-                    qs = qs.exclude(pk__in=qs_pre.order_by().values('pk'))
+                    query = query.exclude(pk__in=qs_pre.order_by().values('pk'))
                 except KeyError:
                     # collection not included pre-auth, everything is added.
                     pass
-                for obj in qs:
+                for obj in query:
                     this.ws.send(col_post.obj_change_as_msg(obj, ADDED))
 
             # second pass, send `removed` for objs unique to `pre`
-            for col_pre, qs in pre.items():
+            for col_pre, query in pre.items():
                 try:
                     qs_post = post[col_pre]
-                    qs = qs.exclude(pk__in=qs_post.order_by().values('pk'))
+                    query = query.exclude(
+                        pk__in=qs_post.order_by().values('pk'),
+                    )
                 except KeyError:
                     # collection not included post-auth, everything is removed.
                     pass
-                for obj in qs:
+                for obj in query:
                     this.ws.send(col_pre.obj_change_as_msg(obj, REMOVED))
 
     @staticmethod
