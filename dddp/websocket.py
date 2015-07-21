@@ -107,7 +107,6 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
     support = None
     connection = None
     subs = None
-    request = None
     remote_ids = None
     base_handler = BaseHandler()
 
@@ -312,21 +311,11 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         elif version not in support:
             self.error('Client version/support mismatch.')
         else:
-            self.request = WSGIRequest(self.ws.environ)
-            # Apply request middleware (so we get request.user and other attrs)
-            # pylint: disable=protected-access
-            if self.base_handler._request_middleware is None:
-                self.base_handler.load_middleware()
-            for middleware_method in self.base_handler._request_middleware:
-                response = middleware_method(self.request)
-                if response:
-                    raise ValueError(response)
+            this.request = WSGIRequest(self.ws.environ)
             this.ws = self
-            this.request = self.request
             this.send = self.send
             this.reply = self.reply
             this.error = self.error
-            this.request.session.save()
 
             from dddp.models import Connection
             cur = connection.cursor()
