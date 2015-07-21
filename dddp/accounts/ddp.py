@@ -7,14 +7,16 @@ See http://docs.meteor.com/#/full/accounts_api for details of each method.
 """
 from binascii import Error
 import collections
+import datetime
 import hashlib
 
 from ejson import loads, dumps
 
 from django.conf import settings
 from django.contrib import auth
-from django.contrib.sessions.backends.db import SessionStore
-from django.contrib.auth.signals import user_login_failed
+from django.contrib.auth.signals import (
+    user_login_failed, user_logged_in, user_logged_out,
+)
 from django.dispatch import Signal
 from django.utils import timezone
 
@@ -38,8 +40,71 @@ class HashPurpose(object):
 
     PASSWORD_RESET = 'password_reset'
     RESUME_LOGIN = 'resume_login'
-    CHANGE_EMAIL = 'change_email'
-    CREATE_USER = 'create_user'
+
+
+HASH_DAYS_VALID = {
+    HashPurpose.PASSWORD_RESET: int(
+        getattr(
+            # keep possible attack window short to reduce chance of account
+            # takeover through later  discovery of password reset email message.
+            settings, 'DDP_PASSWORD_RESET_DAYS_VALID', '1',
+        )
+    ),
+    HashPurpose.RESUME_LOGIN: int(
+        getattr(
+            # balance security and useability by allowing users to resume their
+            # logins within a reasonable time, but not forever.
+            settings, 'DDP_LOGIN_RESUME_DAYS_VALID', '10',
+        )
+    ),
+}
+
+
+def iter_auth_hashes(user, purpose, days_valid):
+    """
+    Generate auth tokens tied to user and specified purpose.
+
+    The hash expires at midnight on the day of today + days_valid, such that
+    when days_valid=1 you get *at least* 24 hours to use the token.
+    """
+    today = timezone.now().date()
+    for day in range(days_valid + 1):
+        yield hashlib.sha1(
+            '%s:%s:%s:%s:%s' % (
+                today - datetime.timedelta(days=day),
+                user.password,
+                purpose,
+                user.pk,
+                settings.SECRET_KEY,
+            ),
+        ).hexdigest()
+
+
+def get_auth_hash(user, purpose):
+    """Generate a user hash for a particular purpose."""
+    return iter_auth_hashes(user, purpose, days_valid=1).next()
+
+
+def calc_expiry_time(days_valid):
+    """Return specific time an auth_hash will expire."""
+    return (
+        timezone.now() + datetime.timedelta(days=days_valid + 1)
+    ).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def get_user_token(user, purpose, days_valid):
+    """Return login token info for given user."""
+    token = ''.join(
+        dumps([
+            user.get_username(),
+            get_auth_hash(user, purpose),
+        ]).encode('base64').split('\n')
+    )
+    return {
+        'id': get_meteor_id(user),
+        'token': token,
+        'tokenExpires': calc_expiry_time(days_valid),
+    }
 
 
 class Users(Collection):
@@ -132,7 +197,7 @@ class Users(Collection):
         del options
         user = get_object(
             self.model, selector['_id'],
-            pk=this.request.user.pk,
+            pk=this.user_id,
         )
         profile_update = self.deserialize_profile(
             update['$set'], key_prefix='profile.', pop=True,
@@ -227,55 +292,24 @@ class Auth(APIMixin):
             )
         raise MeteorError(403, 'Authentication failed.')
 
-    @staticmethod
-    def get_auth_hash(user, purpose):
-        """Generate a user hash for a particular purpose."""
-        return hashlib.sha1(
-            ':'.join([
-                settings.SECRET_KEY,
-                user.get_session_auth_hash(),
-                purpose,
-            ])
-        ).hexdigest()
-
     @classmethod
-    def validated_user_and_session(cls, token, purpose):
-        """Resolve and validate auth token, returns user and session objects."""
+    def validated_user(cls, token, purpose, days_valid):
+        """Resolve and validate auth token, returns user object."""
         try:
-            username, session_key, auth_hash = loads(token.decode('base64'))
+            username, auth_hash = loads(token.decode('base64'))
         except (ValueError, Error):
             cls.auth_failed(token=token)
         try:
             user = cls.user_model.objects.get(**{
                 cls.user_model.USERNAME_FIELD: username,
+                'is_active': True,
             })
             user.backend = 'django.contrib.auth.backends.ModelBackend'
         except cls.user_model.DoesNotExist:
             cls.auth_failed(username=username, token=token)
-        if cls.get_auth_hash(user, purpose) != auth_hash:
+        if auth_hash not in iter_auth_hashes(user, purpose, days_valid):
             cls.auth_failed(username=username, token=token)
-        session = SessionStore(
-            session_key=session_key,
-        )
-        if session.get_expiry_date() <= timezone.now():
-            cls.auth_failed(username=username, token=token)
-        return (user, session)
-
-    @classmethod
-    def get_user_token(cls, user, session_key, expiry_date, purpose):
-        """Return login token info for given user."""
-        token = ''.join(
-            dumps([
-                user.get_username(),
-                session_key,
-                cls.get_auth_hash(user, purpose),
-            ]).encode('base64').split('\n')
-        )
-        return {
-            'id': get_meteor_id(user),
-            'token': token,
-            'tokenExpires': expiry_date,
-        }
+        return user
 
     @staticmethod
     def check_secure():
@@ -362,22 +396,41 @@ class Auth(APIMixin):
         user = auth.authenticate(
             username=user.get_username(), password=params['password'],
         )
-        auth.login(this.request, user)
-        self.sub_user()
+        self.do_login(user)
+        return get_user_token(
+            user=user, purpose=HashPurpose.RESUME_LOGIN,
+            days_valid=HASH_DAYS_VALID[HashPurpose.RESUME_LOGIN],
+        )
+
+    def do_login(self, user):
+        """Login a user."""
+        this.user_id = user.pk
+        this.user_ddp_id = get_meteor_id(user)
+        # silent subscription (sans sub/nosub msg) to LoggedInUser pub
+        this.user_sub_id = meteor_random_id()
+        API.do_sub(this.user_sub_id, 'LoggedInUser', silent=True)
         self.update_subs(user.pk)
-        return self.get_user_token(
-            user=user,
-            session_key=this.request.session.session_key,
-            expiry_date=this.request.session.get_expiry_date(),
-            purpose=HashPurpose.CREATE_USER,
+        user_logged_in.send(
+            sender=user.__class__, request=this.request, user=user,
+        )
+
+    def do_logout(self):
+        """Logout a user."""
+        user = self.user_model.objects.get(pk=this.user_id)
+        this.user_id = None
+        this.user_ddp_id = None
+        # silent unsubscription (sans sub/nosub msg) from LoggedInUser pub
+        API.do_unsub(this.user_sub_id, silent=True)
+        del this.user_sub_id
+        self.update_subs(None)
+        user_logged_out.send(
+            sender=self.user_model, request=this.request, user=user,
         )
 
     @api_endpoint
     def logout(self):
         """Logout current user."""
-        auth.logout(this.request)
-        self.unsub_user()
-        self.update_subs(None)
+        self.do_logout()
 
     @api_endpoint
     def login(self, params):
@@ -388,28 +441,6 @@ class Auth(APIMixin):
             return self.login_with_resume_token(params)
         else:
             self.auth_failed(**params)
-
-    def sub_user(self):
-        """Silent subscription (sans sub/nosub msg) to LoggedInUser pub."""
-        this.send_orig = this.send
-        this.send = self.send_alt
-        this.user_sub_id = meteor_random_id()
-        API.sub(this.user_sub_id, 'LoggedInUser')
-        this.send = this.send_orig
-
-    def unsub_user(self):
-        """Silent unsubscription (sans sub/nosub msg) from LoggedInUser pub."""
-        this.send_orig = this.send
-        this.send = self.send_alt
-        API.unsub(this.user_sub_id)
-        this.send = this.send_orig
-        del this.send_orig
-        del this.user_sub_id
-
-    def send_alt(self, msg):
-        """Alternative send for use within login method."""
-        if msg['msg'] not in ['ready', 'nosub']:
-            this.send_orig(msg)
 
     def login_with_password(self, params):
         """Authenticate using credentials supplied in params."""
@@ -423,15 +454,10 @@ class Auth(APIMixin):
         if user is not None:
             # the password verified for the user
             if user.is_active:
-                auth.login(this.request, user)
-                self.sub_user()
-                self.update_subs(user.pk)
-                this.request.session.save()
-                return self.get_user_token(
-                    user=user,
-                    session_key=this.request.session.session_key,
-                    expiry_date=this.request.session.get_expiry_date(),
-                    purpose=HashPurpose.RESUME_LOGIN,
+                self.do_login(user)
+                return get_user_token(
+                    user=user, purpose=HashPurpose.RESUME_LOGIN,
+                    days_valid=HASH_DAYS_VALID[HashPurpose.RESUME_LOGIN],
                 )
 
         # Call to `authenticate` was unable to verify the username and password.
@@ -451,27 +477,27 @@ class Auth(APIMixin):
         # never allow insecure login
         self.check_secure()
 
-        # pull the username, session_key and auth_hash from the token
-        user, session = self.validated_user_and_session(
+        # pull the username and auth_hash from the token
+        user = self.validated_user(
             params['resume'], purpose=HashPurpose.RESUME_LOGIN,
+            days_valid=HASH_DAYS_VALID[HashPurpose.RESUME_LOGIN],
         )
 
-        auth.login(this.request, user)
-        self.sub_user()
-        self.update_subs(user.pk)
-        this.request.session.save()
-        return self.get_user_token(
-            user=user,
-            session_key=session.session_key,
-            expiry_date=session.get_expiry_date(),
-            purpose=HashPurpose.RESUME_LOGIN,
+        self.do_login(user)
+        return get_user_token(
+            user=user, purpose=HashPurpose.RESUME_LOGIN,
+            days_valid=HASH_DAYS_VALID[HashPurpose.RESUME_LOGIN],
         )
 
     @api_endpoint('changePassword')
     def change_password(self, old_password, new_password):
         """Change password."""
+        try:
+            user = self.user_model.objects.get(pk=this.user_id)
+        except self.user_model.DoesNotExist:
+            self.auth_failed()
         user = auth.authenticate(
-            username=this.request.user.get_username(),
+            username=user.get_username(),
             password=self.get_password(old_password),
         )
         if user is None:
@@ -497,11 +523,10 @@ class Auth(APIMixin):
         except self.user_model.DoesNotExist:
             self.auth_failed()
 
-        expiry_date = this.request.session.get_expiry_date()
-        token = self.get_user_token(
-            user=user, session_key=this.request.session.session_key,
-            expiry_date=expiry_date,
-            purpose=HashPurpose.PASSWORD_RESET,
+        days_valid = HASH_DAYS_VALID[HashPurpose.PASSWORD_RESET],
+        token = get_user_token(
+            user=user, purpose=HashPurpose.PASSWORD_RESET,
+            days_valid=days_valid,
         )
 
         forgot_password.send(
@@ -509,21 +534,20 @@ class Auth(APIMixin):
             user=user,
             token=token,
             request=this.request,
-            expiry_date=expiry_date,
+            expiry_date=calc_expiry_time(days_valid),
         )
 
     @api_endpoint('resetPassword')
     def reset_password(self, token, new_password):
         """Reset password using a token received in email then logs user in."""
-        user, _ = self.validated_user_and_session(
+        user = self.validated_user(
             token, purpose=HashPurpose.PASSWORD_RESET,
+            days_valid=HASH_DAYS_VALID[HashPurpose.PASSWORD_RESET],
         )
         user.set_password(new_password)
         user.save()
-        auth.login(this.request, user)
-        self.sub_user()
-        self.update_subs(user.pk)
-        return {"userId": get_meteor_id(this.request.user)};
+        self.do_login(user)
+        return {"userId": this.user_ddp_id}
 
 
 API.register([Users, LoginServiceConfiguration, LoggedInUser, Auth])
