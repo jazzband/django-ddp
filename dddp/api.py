@@ -162,6 +162,10 @@ class APIMixin(object):
         """Return API endpoint for given api_path."""
         return self.api_path_map()[api_path]
 
+    def ready(self):
+        """Initialisation (setup lookups and signal handlers)."""
+        pass
+
 
 def model_name(model):
     """Return model name given model class."""
@@ -706,6 +710,9 @@ class DDP(APIMixin):
         signals.post_save.connect(self.on_post_save)
         signals.post_delete.connect(self.on_post_delete)
         signals.m2m_changed.connect(self.on_m2m_changed)
+        # call ready on each registered API endpoint
+        for api_provider in self.api_providers:
+            api_provider.ready()
 
     def on_pre_migrate(self, sender, **kwargs):
         """Pre-migrate signal handler."""
