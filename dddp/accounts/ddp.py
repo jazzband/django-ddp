@@ -20,7 +20,10 @@ from django.contrib.auth.signals import (
 from django.dispatch import Signal
 from django.utils import timezone
 
-from dddp import THREAD_LOCAL as this, ADDED, REMOVED, meteor_random_id
+from dddp import (
+    THREAD_LOCAL_FACTORIES, THREAD_LOCAL as this, ADDED, REMOVED,
+    meteor_random_id,
+)
 from dddp.models import get_meteor_id, get_object, Subscription
 from dddp.api import API, APIMixin, api_endpoint, Collection, Publication
 from dddp.websocket import MeteorError
@@ -234,6 +237,19 @@ class Auth(APIMixin):
 
     api_path_prefix = ''  # auth endpoints don't have a common prefix
     user_model = auth.get_user_model()
+    user_id = None
+    user_ddp_id = None
+
+    def user_factory(self):
+        """Retrieve the current user (or None) from the database."""
+        if this.user_id is None:
+            return None
+        return self.user_model.objects.get(pk=this.user_id)
+    user_factory.update_thread_local = False
+
+    def ready(self):
+        """Called after AppConfig.ready()."""
+        THREAD_LOCAL_FACTORIES['user'] = self.user_factory
 
     @staticmethod
     def update_subs(new_user_id):
@@ -416,16 +432,15 @@ class Auth(APIMixin):
 
     def do_logout(self):
         """Logout a user."""
-        user = self.user_model.objects.get(pk=this.user_id)
-        this.user_id = None
-        this.user_ddp_id = None
         # silent unsubscription (sans sub/nosub msg) from LoggedInUser pub
         API.do_unsub(this.user_sub_id, silent=True)
         del this.user_sub_id
         self.update_subs(None)
         user_logged_out.send(
-            sender=self.user_model, request=this.request, user=user,
+            sender=self.user_model, request=this.request, user=this.user,
         )
+        this.user_id = None
+        this.user_ddp_id = None
 
     @api_endpoint
     def logout(self):
@@ -493,7 +508,7 @@ class Auth(APIMixin):
     def change_password(self, old_password, new_password):
         """Change password."""
         try:
-            user = self.user_model.objects.get(pk=this.user_id)
+            user = this.user
         except self.user_model.DoesNotExist:
             self.auth_failed()
         user = auth.authenticate(
