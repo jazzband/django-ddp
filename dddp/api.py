@@ -591,7 +591,7 @@ class DDP(APIMixin):
         sub, created = Subscription.objects.get_or_create(
             connection_id=this.ws.connection.pk,
             sub_id=id_,
-            user_id=this.request.user.pk,
+            user_id=getattr(this, 'user_id', None),
             defaults={
                 'publication': pub.name,
                 'params_ejson': ejson.dumps(params),
