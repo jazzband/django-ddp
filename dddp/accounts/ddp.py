@@ -48,10 +48,6 @@ class Users(Collection):
     api_path_prefix = '/users/'
     model = auth.get_user_model()
 
-    user_rel = [
-        'pk',
-    ]
-
     def serialize(self, obj, *args, **kwargs):
         """Serialize user as per Meteor accounts serialization."""
         # use default serialization, then modify to suit our needs.
@@ -147,9 +143,9 @@ class LoginPublication(Publication):
 
     name = 'meteor.loginServiceConfiguration'
 
-    queries = [
-        (Users.model.objects.all(), 'users'),
-    ]
+    def get_queries(self):
+        """Return queries for each set of data the user may see."""
+        yield Users.query(pk=this.request.user.pk)
 
 
 class Auth(APIMixin):

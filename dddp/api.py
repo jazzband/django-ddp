@@ -12,7 +12,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 import django.contrib.postgres.fields
 from django.db import connections, router
-from django.db.models import aggregates, Q
+from django.db.models import aggregates, Q, QuerySet
 try:
     # pylint: disable=E0611
     from django.db.models.expressions import ExpressionNode
@@ -27,6 +27,7 @@ import ejson
 # django-ddp
 from dddp import (
     AlreadyRegistered, THREAD_LOCAL as this, ADDED, CHANGED, REMOVED,
+    UserIdBase,
 )
 from dddp.models import Connection, Subscription, get_meteor_id, get_meteor_ids
 
@@ -172,6 +173,86 @@ def model_name(model):
 COLLECTION_PATH_FORMAT = '/{name}/'
 
 
+class LiveQuery(QuerySet):
+
+    """QuerySet that stashes references to this.user_id for later use."""
+
+    def __init__(self, collection, *args, **kwargs):
+        """Stash references to this.user_id."""
+        self.collection = collection
+        self.user_rel = []
+        qs = colleciton.model._base_manager.all()
+        for key, val in kwargs.items():
+            if isinstance(val, UserIdBase):
+                self.user_rel.append(val)
+                del kwargs[key]
+        qs = qs.filter(*args, **kwargs)
+        # enforce ordering so later use of distinct() works as expected.
+        if not qs.query.order_by:
+            if collection.order_by is None:
+                qs = qs.order_by('pk')
+            else:
+                qs = qs.order_by(*self.order_by)
+        self.queryset = qs
+
+    def objects_for_user(self, user, xmin__lte=None):
+        """Find objects in queryset related to specified user."""
+        qs = self.queryset
+        user_rels = self.user_rel
+        if user_rels:
+            if user is None:
+                return qs.none()  # no user but we need one: return no objects.
+            user_filter = None
+            for user_rel in user_rels:
+                filter_obj = Q(**{user_rel: user})
+                if user_filter is None:
+                    user_filter = filter_obj
+                else:
+                    user_filter |= filter_obj
+            qs = qs.filter(user_filter).distinct()
+        if xmin__lte is not None:
+            qs = qs.extra(
+                where=["'xmin' <= %s"],
+                params=[xmin__lte],
+            )
+        return qs
+
+    def user_ids_for_object(self, obj):
+        """Find user IDs related to object/pk in queryset."""
+        qs = self.queryset
+        if self.user_rel:
+            user_ids = set()
+            if obj.pk is None:
+                return user_ids  # nobody can see objects that don't exist
+            user_rels = self.user_rel
+            user_rel_map = {
+                '_user_rel_%d' % index: Array(user_rel)
+                for index, user_rel
+                in enumerate(user_rels)
+            }
+
+            if self.collection.always_allow_superusers:
+                user_ids.update(
+                    get_user_model().objects.filter(
+                        is_superuser=True, is_active=True,
+                    ).values_list('pk', flat=True)
+                )
+
+            for rel_user_ids in qs.filter(
+                    pk=obj.pk,
+            ).annotate(
+                **user_rel_map
+            ).values_list(
+                *user_rel_map.keys()
+            ).get():
+                user_ids.update(rel_user_ids)
+            user_ids.difference_update([None])
+            return user_ids
+        else:
+            return None
+
+
+
 class CollectionMeta(APIMeta):
 
     """DDP Collection metaclass."""
@@ -197,10 +278,13 @@ class Collection(APIMixin):
 
     name = None
     model = None
-    qs_filter = None
     order_by = None
     user_rel = None
     always_allow_superusers = True
+
+    def query(self, *args, **kwargs):
+        """Return a LiveQuery instance for this collection."""
+        return LiveQuery(self, *args, **kwargs)
 
     def get_queryset(self, base_qs=None):
         """Return a filtered, ordered queryset for this collection."""
@@ -211,8 +295,6 @@ class Collection(APIMixin):
                 qs = qs.order_by('pk')
             else:
                 qs = qs.order_by(*self.order_by)
-        if self.qs_filter:
-            qs = qs.filter(self.qs_filter)
         return qs
 
     queryset = property(get_queryset)

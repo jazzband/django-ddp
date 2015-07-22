@@ -99,10 +99,63 @@ def serializer_factory():
     return get_serializer('python')()
 
 
+def tagged(tag_class, obj):
+    """
+    Return tagged reference to obj via tag_class.
+
+    Use `isinstance(obj, tag_class)` to check if obj has been tagged.
+
+    >>> class Foo(object): pass
+    >>> x = tagged(Foo, 4)
+    >>> x
+    4
+    >>> isinstance(x, int)
+    True
+    >>> isinstance(x, Foo)
+    True
+    >>> y = x + 2
+    >>> isinstance(y, Foo)
+    False
+    >>> z = 2 + x
+    >>> isinstance(z, Foo)
+    False
+    >>> n = tagged(Foo, None)
+    >>> n
+    None
+    >>> isinstance(n, Foo)
+    True
+    >>> n is None  # this might not be what you expected, be aware!
+    False
+    >>> isinstance(n, type(None))  # we can still check isinstance of NoneType.
+    True
+    """
+    return type(
+        type(obj).__name__,
+        (
+            tag_class,
+            type(obj),
+        ),
+        {},
+    )(*[arg for arg in [obj] if arg is not None])
+
+
+class UserIdBase(object):
+
+    """Tag class for user_id."""
+
+    pass
+
+
+def user_id():
+    """Return tagged reference to this.request.user.id"""
+    return tagged(UserIdBase, THREAD_LOCAL.request.user.pk)
+
+
 THREAD_LOCAL = ThreadLocal(
     alea_random=alea.Alea,
     random_streams=RandomStreams,
     serializer=serializer_factory,
+    user_id=user_id,
 )
 METEOR_ID_CHARS = u'23456789ABCDEFGHJKLMNPQRSTWXYZabcdefghijkmnopqrstuvwxyz'
 
