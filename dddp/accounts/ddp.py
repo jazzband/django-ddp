@@ -7,23 +7,30 @@ See http://docs.meteor.com/#/full/accounts_api for details of each method.
 """
 from binascii import Error
 import collections
+import datetime
 import hashlib
 
 from ejson import loads, dumps
 
 from django.conf import settings
 from django.contrib import auth
-from django.contrib.sessions.backends.db import SessionStore
-from django.contrib.auth.signals import user_login_failed
+from django.contrib.auth.signals import (
+    user_login_failed, user_logged_in, user_logged_out,
+)
 from django.dispatch import Signal
 from django.utils import timezone
 
-from dddp import THREAD_LOCAL as this, ADDED, REMOVED
+from dddp import (
+    THREAD_LOCAL_FACTORIES, THREAD_LOCAL as this, ADDED, REMOVED,
+    meteor_random_id,
+)
 from dddp.models import get_meteor_id, get_object, Subscription
 from dddp.api import API, APIMixin, api_endpoint, Collection, Publication
 from dddp.websocket import MeteorError
 
 
+# pylint dones't like lower case attribute names on modules, but it's the normal
+# thing to do for Django signal names.  --> pylint: disable=C0103
 create_user = Signal(providing_args=['request', 'params'])
 password_changed = Signal(providing_args=['request', 'user'])
 forgot_password = Signal(providing_args=['request', 'user', 'token', 'expiry'])
@@ -36,8 +43,71 @@ class HashPurpose(object):
 
     PASSWORD_RESET = 'password_reset'
     RESUME_LOGIN = 'resume_login'
-    CHANGE_EMAIL = 'change_email'
-    CREATE_USER = 'create_user'
+
+
+HASH_DAYS_VALID = {
+    HashPurpose.PASSWORD_RESET: int(
+        getattr(
+            # keep possible attack window short to reduce chance of account
+            # takeover through later  discovery of password reset email message.
+            settings, 'DDP_PASSWORD_RESET_DAYS_VALID', '1',
+        )
+    ),
+    HashPurpose.RESUME_LOGIN: int(
+        getattr(
+            # balance security and useability by allowing users to resume their
+            # logins within a reasonable time, but not forever.
+            settings, 'DDP_LOGIN_RESUME_DAYS_VALID', '10',
+        )
+    ),
+}
+
+
+def iter_auth_hashes(user, purpose, days_valid):
+    """
+    Generate auth tokens tied to user and specified purpose.
+
+    The hash expires at midnight on the day of today + days_valid, such that
+    when days_valid=1 you get *at least* 24 hours to use the token.
+    """
+    today = timezone.now().date()
+    for day in range(days_valid + 1):
+        yield hashlib.sha1(
+            '%s:%s:%s:%s:%s' % (
+                today - datetime.timedelta(days=day),
+                user.password,
+                purpose,
+                user.pk,
+                settings.SECRET_KEY,
+            ),
+        ).hexdigest()
+
+
+def get_auth_hash(user, purpose):
+    """Generate a user hash for a particular purpose."""
+    return iter_auth_hashes(user, purpose, days_valid=1).next()
+
+
+def calc_expiry_time(days_valid):
+    """Return specific time an auth_hash will expire."""
+    return (
+        timezone.now() + datetime.timedelta(days=days_valid + 1)
+    ).replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def get_user_token(user, purpose, days_valid):
+    """Return login token info for given user."""
+    token = ''.join(
+        dumps([
+            user.get_username(),
+            get_auth_hash(user, purpose),
+        ]).encode('base64').split('\n')
+    )
+    return {
+        'id': get_meteor_id(user),
+        'token': token,
+        'tokenExpires': calc_expiry_time(days_valid),
+    }
 
 
 class Users(Collection):
@@ -103,7 +173,7 @@ class Users(Collection):
         return data
 
     @staticmethod
-    def deserialize_profile(user, profile, key_prefix='', pop=False):
+    def deserialize_profile(profile, key_prefix='', pop=False):
         """De-serialize user profile fields into concrete model fields."""
         result = {}
         if pop:
@@ -126,12 +196,14 @@ class Users(Collection):
     @api_endpoint
     def update(self, selector, update, options=None):
         """Update user data."""
+        # we're ignoring the `options` argument at this time
+        del options
         user = get_object(
             self.model, selector['_id'],
-            pk=this.request.user.pk,
+            pk=this.user_id,
         )
         profile_update = self.deserialize_profile(
-            user, update['$set'], key_prefix='profile.', pop=True,
+            update['$set'], key_prefix='profile.', pop=True,
         )
         if len(update['$set']) != 0:
             raise MeteorError(400, 'Invalid update fields: %r')
@@ -141,11 +213,18 @@ class Users(Collection):
         user.save()
 
 
-class LoginPublication(Publication):
+class LoginServiceConfiguration(Publication):
 
-    """Meteor Accounts emulation."""
+    """Published list of authenitcation providers and their configuration."""
 
     name = 'meteor.loginServiceConfiguration'
+
+    queries = []
+
+
+class LoggedInUser(Publication):
+
+    """Meteor auto publication for showing logged in user."""
 
     queries = [
         (Users.model.objects.all(), 'users'),
@@ -158,8 +237,22 @@ class Auth(APIMixin):
 
     api_path_prefix = ''  # auth endpoints don't have a common prefix
     user_model = auth.get_user_model()
+    user_id = None
+    user_ddp_id = None
 
-    def update_subs(self, new_user_id):
+    def user_factory(self):
+        """Retrieve the current user (or None) from the database."""
+        if this.user_id is None:
+            return None
+        return self.user_model.objects.get(pk=this.user_id)
+    user_factory.update_thread_local = False
+
+    def ready(self):
+        """Called after AppConfig.ready()."""
+        THREAD_LOCAL_FACTORIES['user'] = self.user_factory
+
+    @staticmethod
+    def update_subs(new_user_id):
         """Update subs to send added/removed for collections with user_rel."""
         for sub in Subscription.objects.filter(connection=this.ws.connection):
             params = loads(sub.params_ejson)
@@ -167,7 +260,7 @@ class Auth(APIMixin):
 
             # calculate the querysets prior to update
             pre = collections.OrderedDict([
-                (col, qs) for col, qs
+                (col, query) for col, query
                 in API.sub_unique_objects(sub, params, pub)
             ])
 
@@ -177,30 +270,32 @@ class Auth(APIMixin):
 
             # calculate the querysets after the update
             post = collections.OrderedDict([
-                (col, qs) for col, qs
+                (col, query) for col, query
                 in API.sub_unique_objects(sub, params, pub)
             ])
 
             # first pass, send `added` for objs unique to `post`
-            for col_post, qs in post.items():
+            for col_post, query in post.items():
                 try:
                     qs_pre = pre[col_post]
-                    qs = qs.exclude(pk__in=qs_pre.order_by().values('pk'))
+                    query = query.exclude(pk__in=qs_pre.order_by().values('pk'))
                 except KeyError:
                     # collection not included pre-auth, everything is added.
                     pass
-                for obj in qs:
+                for obj in query:
                     this.ws.send(col_post.obj_change_as_msg(obj, ADDED))
 
             # second pass, send `removed` for objs unique to `pre`
-            for col_pre, qs in pre.items():
+            for col_pre, query in pre.items():
                 try:
                     qs_post = post[col_pre]
-                    qs = qs.exclude(pk__in=qs_post.order_by().values('pk'))
+                    query = query.exclude(
+                        pk__in=qs_post.order_by().values('pk'),
+                    )
                 except KeyError:
                     # collection not included post-auth, everything is removed.
                     pass
-                for obj in qs:
+                for obj in query:
                     this.ws.send(col_pre.obj_change_as_msg(obj, REMOVED))
 
     @staticmethod
@@ -213,55 +308,24 @@ class Auth(APIMixin):
             )
         raise MeteorError(403, 'Authentication failed.')
 
-    @staticmethod
-    def get_auth_hash(user, purpose):
-        """Generate a user hash for a particular purpose."""
-        return hashlib.sha1(
-            ':'.join([
-                settings.SECRET_KEY,
-                user.get_session_auth_hash(),
-                purpose,
-            ])
-        ).hexdigest()
-
     @classmethod
-    def validated_user_and_session(cls, token, purpose):
-        """Resolve and validate auth token, returns user and session objects."""
+    def validated_user(cls, token, purpose, days_valid):
+        """Resolve and validate auth token, returns user object."""
         try:
-            username, session_key, auth_hash = loads(token.decode('base64'))
+            username, auth_hash = loads(token.decode('base64'))
         except (ValueError, Error):
             cls.auth_failed(token=token)
         try:
             user = cls.user_model.objects.get(**{
                 cls.user_model.USERNAME_FIELD: username,
+                'is_active': True,
             })
             user.backend = 'django.contrib.auth.backends.ModelBackend'
         except cls.user_model.DoesNotExist:
             cls.auth_failed(username=username, token=token)
-        if cls.get_auth_hash(user, purpose) != auth_hash:
+        if auth_hash not in iter_auth_hashes(user, purpose, days_valid):
             cls.auth_failed(username=username, token=token)
-        session = SessionStore(
-            session_key=session_key,
-        )
-        if session.get_expiry_date() <= timezone.now():
-            cls.auth_failed(username=username, token=token)
-        return (user, session)
-
-    @classmethod
-    def get_user_token(cls, user, session_key, expiry_date, purpose):
-        """Return login token info for given user."""
-        token = ''.join(
-            dumps([
-                user.get_username(),
-                session_key,
-                cls.get_auth_hash(user, purpose),
-            ]).encode('base64').split('\n')
-        )
-        return {
-            'id': get_meteor_id(user),
-            'token': token,
-            'tokenExpires': expiry_date,
-        }
+        return user
 
     @staticmethod
     def check_secure():
@@ -348,20 +412,40 @@ class Auth(APIMixin):
         user = auth.authenticate(
             username=user.get_username(), password=params['password'],
         )
-        auth.login(this.request, user)
-        self.update_subs(user.pk)
-        return self.get_user_token(
-            user=user,
-            session_key=this.request.session.session_key,
-            expiry_date=this.request.session.get_expiry_date(),
-            purpose=HashPurpose.CREATE_USER,
+        self.do_login(user)
+        return get_user_token(
+            user=user, purpose=HashPurpose.RESUME_LOGIN,
+            days_valid=HASH_DAYS_VALID[HashPurpose.RESUME_LOGIN],
         )
+
+    def do_login(self, user):
+        """Login a user."""
+        this.user_id = user.pk
+        this.user_ddp_id = get_meteor_id(user)
+        # silent subscription (sans sub/nosub msg) to LoggedInUser pub
+        this.user_sub_id = meteor_random_id()
+        API.do_sub(this.user_sub_id, 'LoggedInUser', silent=True)
+        self.update_subs(user.pk)
+        user_logged_in.send(
+            sender=user.__class__, request=this.request, user=user,
+        )
+
+    def do_logout(self):
+        """Logout a user."""
+        # silent unsubscription (sans sub/nosub msg) from LoggedInUser pub
+        API.do_unsub(this.user_sub_id, silent=True)
+        del this.user_sub_id
+        self.update_subs(None)
+        user_logged_out.send(
+            sender=self.user_model, request=this.request, user=this.user,
+        )
+        this.user_id = None
+        this.user_ddp_id = None
 
     @api_endpoint
     def logout(self):
         """Logout current user."""
-        auth.logout(this.request)
-        self.update_subs(None)
+        self.do_logout()
 
     @api_endpoint
     def login(self, params):
@@ -385,14 +469,10 @@ class Auth(APIMixin):
         if user is not None:
             # the password verified for the user
             if user.is_active:
-                auth.login(this.request, user)
-                self.update_subs(user.pk)
-                this.request.session.save()
-                return self.get_user_token(
-                    user=user,
-                    session_key=this.request.session.session_key,
-                    expiry_date=this.request.session.get_expiry_date(),
-                    purpose=HashPurpose.RESUME_LOGIN,
+                self.do_login(user)
+                return get_user_token(
+                    user=user, purpose=HashPurpose.RESUME_LOGIN,
+                    days_valid=HASH_DAYS_VALID[HashPurpose.RESUME_LOGIN],
                 )
 
         # Call to `authenticate` was unable to verify the username and password.
@@ -412,26 +492,27 @@ class Auth(APIMixin):
         # never allow insecure login
         self.check_secure()
 
-        # pull the username, session_key and auth_hash from the token
-        user, session = self.validated_user_and_session(
+        # pull the username and auth_hash from the token
+        user = self.validated_user(
             params['resume'], purpose=HashPurpose.RESUME_LOGIN,
+            days_valid=HASH_DAYS_VALID[HashPurpose.RESUME_LOGIN],
         )
 
-        auth.login(this.request, user)
-        self.update_subs(user.pk)
-        this.request.session.save()
-        return self.get_user_token(
-            user=user,
-            session_key=session.session_key,
-            expiry_date=session.get_expiry_date(),
-            purpose=HashPurpose.RESUME_LOGIN,
+        self.do_login(user)
+        return get_user_token(
+            user=user, purpose=HashPurpose.RESUME_LOGIN,
+            days_valid=HASH_DAYS_VALID[HashPurpose.RESUME_LOGIN],
         )
 
     @api_endpoint('changePassword')
     def change_password(self, old_password, new_password):
         """Change password."""
+        try:
+            user = this.user
+        except self.user_model.DoesNotExist:
+            self.auth_failed()
         user = auth.authenticate(
-            username=this.request.user.get_username(),
+            username=user.get_username(),
             password=self.get_password(old_password),
         )
         if user is None:
@@ -457,11 +538,10 @@ class Auth(APIMixin):
         except self.user_model.DoesNotExist:
             self.auth_failed()
 
-        expiry_date = this.request.session.get_expiry_date()
-        token = self.get_user_token(
-            user=user, session_key=this.request.session.session_key,
-            expiry_date=expiry_date,
-            purpose=HashPurpose.PASSWORD_RESET,
+        days_valid = HASH_DAYS_VALID[HashPurpose.PASSWORD_RESET],
+        token = get_user_token(
+            user=user, purpose=HashPurpose.PASSWORD_RESET,
+            days_valid=days_valid,
         )
 
         forgot_password.send(
@@ -469,20 +549,20 @@ class Auth(APIMixin):
             user=user,
             token=token,
             request=this.request,
-            expiry_date=expiry_date,
+            expiry_date=calc_expiry_time(days_valid),
         )
 
     @api_endpoint('resetPassword')
     def reset_password(self, token, new_password):
         """Reset password using a token received in email then logs user in."""
-        user, _ = self.validated_user_and_session(
+        user = self.validated_user(
             token, purpose=HashPurpose.PASSWORD_RESET,
+            days_valid=HASH_DAYS_VALID[HashPurpose.PASSWORD_RESET],
         )
         user.set_password(new_password)
         user.save()
-        auth.login(this.request, user)
-        self.update_subs(user.pk)
-        return {"userId": get_meteor_id(this.request.user)};
+        self.do_login(user)
+        return {"userId": this.user_ddp_id}
 
 
-API.register([Users, LoginPublication, Auth])
+API.register([Users, LoginServiceConfiguration, LoggedInUser, Auth])

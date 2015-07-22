@@ -1,6 +1,24 @@
 Change Log
 ==========
 
+0.10.0
+------
+* Stop processing request middleware upon connection - see
+  https://github.com/commoncode/django-ddp/commit/e7b38b89db5c4e252ac37566f626b5e9e1651a29 
+  for rationale.  Access to `this.request.user` is gone.
+* Add `this.user` handling to dddp.accounts.
+
+0.9.14
+------
+* Fix ordering of user added vs login ready in dddp.accounts 
+  authentication methods.
+
+0.9.13
+------
+* Add dddp.models.get_object_ids helper function.
+* Add ObjectMappingMixini abstract model mixin providing
+  GenericRelation back to ObjectMapping model.
+
 0.9.12
 ------
 * Bugfix /app.model/schema helper method on collections to work with 

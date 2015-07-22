@@ -164,6 +164,10 @@ class APIMixin(object):
         """Return API endpoint for given api_path."""
         return self.api_path_map()[api_path]
 
+    def ready(self):
+        """Initialisation (setup lookups and signal handlers)."""
+        pass
+
 
 def model_name(model):
     """Return model name given model class."""
@@ -568,30 +572,36 @@ class DDP(APIMixin):
     @api_endpoint
     def sub(self, id_, name, *params):
         """Create subscription, send matched objects that haven't been sent."""
+        return self.do_sub(id_, name, False, *params)
+
+    def do_sub(self, id_, name, silent, *params):
+        """Subscribe the current thread to the specified publication."""
         try:
             pub = self.get_pub_by_name(name)
         except KeyError:
-            this.send({
-                'msg': 'nosub',
-                'error': {
-                    'error': 404,
-                    'errorType': 'Meteor.Error',
-                    'message': 'Subscription not found [404]',
-                    'reason': 'Subscription not found',
-                },
-            })
+            if not silent:
+                this.send({
+                    'msg': 'nosub',
+                    'error': {
+                        'error': 404,
+                        'errorType': 'Meteor.Error',
+                        'message': 'Subscription not found [404]',
+                        'reason': 'Subscription not found',
+                    },
+                })
             return
         sub, created = Subscription.objects.get_or_create(
             connection_id=this.ws.connection.pk,
             sub_id=id_,
-            user_id=this.request.user.pk,
+            user_id=getattr(this, 'user_id', None),
             defaults={
                 'publication': pub.name,
                 'params_ejson': ejson.dumps(params),
             },
         )
         if not created:
-            this.send({'msg': 'ready', 'subs': [id_]})
+            if not silent:
+                this.send({'msg': 'ready', 'subs': [id_]})
             return
         # re-read from DB so we can get transaction ID (xmin)
         sub = Subscription.objects.extra(**XMIN).get(pk=sub.pk)
@@ -611,11 +621,16 @@ class DDP(APIMixin):
             for obj in qs:
                 payload = col.obj_change_as_msg(obj, ADDED, meteor_ids)
                 this.send(payload)
-        this.send({'msg': 'ready', 'subs': [id_]})
+        if not silent:
+            this.send({'msg': 'ready', 'subs': [id_]})
 
     @api_endpoint
     def unsub(self, id_):
         """Remove a subscription."""
+        self.do_unsub(id_, False)
+
+    def do_unsub(self, id_, silent):
+        """Unsubscribe the current thread from the specified subscription id."""
         sub = Subscription.objects.get(
             connection=this.ws.connection, sub_id=id_,
         )
@@ -630,7 +645,8 @@ class DDP(APIMixin):
                 payload = col.obj_change_as_msg(obj, REMOVED, meteor_ids)
                 this.send(payload)
         sub.delete()
-        this.send({'msg': 'nosub', 'id': id_})
+        if not silent:
+            this.send({'msg': 'nosub', 'id': id_})
 
     @api_endpoint
     def method(self, method, params, id_):
@@ -638,7 +654,17 @@ class DDP(APIMixin):
         try:
             handler = self.api_path_map()[method]
         except KeyError:
-            this.error('Unknown method: %s' % method)
+            print('Unknown method: %s %r' % (method, params))
+            this.send({
+                'msg': 'result',
+                'id': id_,
+                'error': {
+                    'error': 404,
+                    'errorType': 'Meteor.Error',
+                    'message': 'Unknown method: %s %r' % (method, params),
+                    'reason': 'Method not found',
+                },
+            })
             return
         params_repr = repr(params)
         try:
@@ -702,6 +728,9 @@ class DDP(APIMixin):
         signals.post_save.connect(self.on_post_save)
         signals.post_delete.connect(self.on_post_delete)
         signals.m2m_changed.connect(self.on_m2m_changed)
+        # call ready on each registered API endpoint
+        for api_provider in self.api_providers:
+            api_provider.ready()
 
     def on_pre_migrate(self, sender, **kwargs):
         """Pre-migrate signal handler."""
