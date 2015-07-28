@@ -1,6 +1,10 @@
 Change Log
 ==========
 
+0.10.1
+------
+* Bugfix dddp.accounts forgot_password feature.
+
 0.10.0
 ------
 * Stop processing request middleware upon connection - see

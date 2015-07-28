@@ -646,7 +646,17 @@ class DDP(APIMixin):
         try:
             handler = self.api_path_map()[method]
         except KeyError:
-            this.error('Unknown method: %s' % method)
+            print('Unknown method: %s %r' % (method, params))
+            this.send({
+                'msg': 'result',
+                'id': id_,
+                'error': {
+                    'error': 404,
+                    'errorType': 'Meteor.Error',
+                    'message': 'Unknown method: %s %r' % (method, params),
+                    'reason': 'Method not found',
+                },
+            })
             return
         params_repr = repr(params)
         try:

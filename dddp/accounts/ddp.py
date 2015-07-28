@@ -538,7 +538,7 @@ class Auth(APIMixin):
         except self.user_model.DoesNotExist:
             self.auth_failed()
 
-        days_valid = HASH_DAYS_VALID[HashPurpose.PASSWORD_RESET],
+        days_valid = HASH_DAYS_VALID[HashPurpose.PASSWORD_RESET]
         token = get_user_token(
             user=user, purpose=HashPurpose.PASSWORD_RESET,
             days_valid=days_valid,
