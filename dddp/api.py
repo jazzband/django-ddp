@@ -597,6 +597,7 @@ class DDP(APIMixin):
                 'params_ejson': ejson.dumps(params),
             },
         )
+        this.subs.setdefault(sub.publication, set()).add(sub.pk)
         if not created:
             if not silent:
                 this.send({'msg': 'ready', 'subs': [id_]})
@@ -636,6 +637,7 @@ class DDP(APIMixin):
             for obj in qs:
                 payload = col.obj_change_as_msg(obj, REMOVED, meteor_ids)
                 this.send(payload)
+        this.subs[sub.publication].remove(sub.pk)
         sub.delete()
         if not silent:
             this.send({'msg': 'nosub', 'id': id_})

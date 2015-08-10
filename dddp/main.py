@@ -60,7 +60,7 @@ def ddpp_sockjs_info(environ, start_response):
     ]))
 
 
-def serve(listen, debug=False, **ssl_args):
+def serve(listen, debug=False, verbosity=1, debug_port=0, **ssl_args):
     """Spawn greenlets for handling websockets and PostgreSQL calls."""
     import signal
     from django.apps import apps
@@ -99,7 +99,7 @@ def serve(listen, debug=False, **ssl_args):
     )
 
     # setup WebSocketServer to dispatch web requests
-    webservers = [
+    servers = [
         geventwebsocket.WebSocketServer(
             (host, port),
             resource,
@@ -113,8 +113,8 @@ def serve(listen, debug=False, **ssl_args):
     def killall(*args, **kwargs):
         """Kill all green threads."""
         pgworker.stop()
-        for webserver in webservers:
-            webserver.stop()
+        for server in servers:
+            server.stop()
 
     # die gracefully with SIGINT or SIGQUIT
     gevent.signal(signal.SIGINT, killall)
@@ -133,19 +133,38 @@ def serve(listen, debug=False, **ssl_args):
     )
 
     # start greenlets
+    if debug_port:
+        from gevent.backdoor import BackdoorServer
+        servers.append(
+            BackdoorServer(
+                ('127.0.0.1', debug_port),
+                banner='Django DDP',
+                locals={
+                    'servers': servers,
+                    'pgworker': pgworker,
+                    'killall': killall,
+                    'api': api,
+                    'resource': resource,
+                    'settings': settings,
+                    'wsgi_app': wsgi_app,
+                    'wsgi_name': wsgi_name,
+                },
+            )
+        )
+
     pgworker.start()
     print('=> Started PostgresGreenlet.')
-    web_threads = [
-        gevent.spawn(webserver.serve_forever)
-        for webserver
-        in webservers
+    threads = [
+        gevent.spawn(server.serve_forever)
+        for server
+        in servers
     ]
     print('=> Started DDPWebSocketApplication.')
     print('=> Started your app (%s).' % wsgi_name)
     print('')
     for host, port in listen:
         print('=> App running at: http://%s:%d/' % (host, port))
-    gevent.joinall(web_threads)
+    gevent.joinall(threads)
     pgworker.stop()
     gevent.joinall([pgworker])
 
@@ -191,6 +210,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     django = parser.add_argument_group('Django Options')
     django.add_argument(
+        '--verbosity', '-v', metavar='VERBOSITY', dest='verbosity', type=int,
+        default=1,
+    )
+    django.add_argument(
+        '--debug-port', metavar='DEBUG_PORT', dest='debug_port', type=int,
+        default=0,
+    )
+    django.add_argument(
         '--settings', metavar='SETTINGS', dest='settings',
         help="The Python path to a settings module, e.g. "
         "\"myproject.settings.main\". If this isn't provided, the "
@@ -218,8 +245,10 @@ def main():
         os.environ['DJANGO_SETTINGS_MODULE'] = namespace.settings
     serve(
         namespace.listen or [Addr('localhost', 8000)],
+        debug_port=namespace.debug_port,
         keyfile=namespace.keyfile,
         certfile=namespace.certfile,
+        verbosity=namespace.verbosity,
     )
 
 
