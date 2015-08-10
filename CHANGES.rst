@@ -1,6 +1,11 @@
 Change Log
 ==========
 
+0.11.0
+------
+* Support more than 8KB of change data by splitting large payloads into 
+  multiple chunks.
+
 0.10.2
 ------
 * Add `Logs` publication that can be configured to emit logs via DDP 
