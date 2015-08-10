@@ -4,6 +4,7 @@ from __future__ import absolute_import
 import collections
 
 from django.db import models, transaction
+from django.db.models.fields import NOT_PROVIDED
 from django.conf import settings
 from django.contrib.contenttypes.fields import (
     GenericRelation, GenericForeignKey,
@@ -173,26 +174,31 @@ class AleaIdField(models.CharField):
 
     def __init__(self, *args, **kwargs):
         """Assume max_length of 17 to match Meteor implementation."""
-        kwargs.update(
-            editable=False,
-            max_length=17,
-        )
+        kwargs.setdefault('editable', False)
+        kwargs.setdefault('max_length', 17)
         super(AleaIdField, self).__init__(*args, **kwargs)
 
-    def deconstruct(self):
-        """Return details on how this field was defined."""
-        name, path, args, kwargs = super(AleaIdField, self).deconstruct()
-        del kwargs['max_length']
-        return name, path, args, kwargs
+    def get_seeded_value(self, instance):
+        """Generate a syncronised value."""
+        # Django model._meta is public API -> pylint: disable=W0212
+        return meteor_random_id(
+            '/collection/%s' % instance._meta, self.max_length,
+        )
+
+    def get_pk_value_on_save(self, instance):
+        """Generate ID if required."""
+        value = super(AleaIdField, self).get_pk_value_on_save(instance)
+        if not value:
+            value = self.get_seeded_value(instance)
+        return value
 
     def pre_save(self, model_instance, add):
         """Generate ID if required."""
-        _, _, _, kwargs = self.deconstruct()
-        val = getattr(model_instance, self.attname)
-        if val is None and kwargs.get('default', None) is None:
-            val = meteor_random_id('/collection/%s' % model_instance._meta)
-            setattr(model_instance, self.attname, val)
-        return val
+        value = super(AleaIdField, self).pre_save(model_instance, add)
+        if (not value) and self.default is NOT_PROVIDED:
+            value = self.get_seeded_value(model_instance)
+            setattr(model_instance, self.attname, value)
+        return value
 
 
 class AleaIdMixin(models.Model):
