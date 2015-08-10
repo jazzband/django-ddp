@@ -1,6 +1,13 @@
 Change Log
 ==========
 
+0.10.2
+------
+* Add `Logs` publication that can be configured to emit logs via DDP 
+  through the use of the `dddp.logging.DDPHandler` log handler.
+* Add option to dddp daemon to provide a BackdoorServer (telnet) for 
+  interactive debugging (REPL) at runtime.
+
 0.10.1
 ------
 * Bugfix dddp.accounts forgot_password feature.

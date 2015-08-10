@@ -106,7 +106,6 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
     version = None
     support = None
     connection = None
-    subs = None
     remote_ids = None
     base_handler = BaseHandler()
 
@@ -131,7 +130,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             '{0[REMOTE_ADDR]}:{0[REMOTE_PORT]}'.format(
                 self.ws.environ,
             )
-        self.subs = {}
+        this.subs = {}
         self.logger.info('+ %s OPEN', self)
         self.send('o')
         self.send('a["{\\"server_id\\":\\"0\\"}"]')
