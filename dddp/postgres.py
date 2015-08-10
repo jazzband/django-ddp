@@ -22,6 +22,7 @@ class PostgresGreenlet(gevent.Greenlet):
 
         # queues for processing incoming sub/unsub requests and processing
         self.connections = {}
+        self.chunks = {}
         self._stop_event = gevent.event.Event()
 
         # connect to DB in async mode
@@ -62,7 +63,29 @@ class PostgresGreenlet(gevent.Greenlet):
                         "Got NOTIFY (pid=%d, payload=%r)",
                         notify.pid, notify.payload,
                     )
-                    data = ejson.loads(notify.payload)
+
+                    # read the header and check seq/fin.
+                    hdr, chunk = notify.payload.split('|', 1)
+                    # print('RECEIVE: %s' % hdr)
+                    header = ejson.loads(hdr)
+                    uuid = header['uuid']
+                    size, chunks = self.chunks.setdefault(uuid, [0, {}])
+                    if header['fin']:
+                        size = self.chunks[uuid][0] = header['seq']
+
+                    # stash the chunk
+                    chunks[header['seq']] = chunk
+
+                    if len(chunks) != size:
+                        # haven't got all the chunks yet
+                        continue  # process next NOTIFY in loop
+
+                    # got the last chunk -> process it.
+                    data = ''.join(
+                        chunk for _, chunk in sorted(chunks.items())
+                    )
+                    del self.chunks[uuid]  # don't forget to cleanup!
+                    data = ejson.loads(data)
                     sender = data.pop('_sender', None)
                     tx_id = data.pop('_tx_id', None)
                     for connection_id in data.pop('_connection_ids'):
