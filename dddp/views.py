@@ -1,18 +1,16 @@
-"""Django DDP Server app config."""
+"""Django DDP Server views."""
 from __future__ import print_function, absolute_import, unicode_literals
 
 import io
 import mimetypes
 import os.path
 
-from django.apps import AppConfig
-from django.conf import settings
-from django.core.exceptions import ImproperlyConfigured
 from ejson import dumps, loads
+from django.conf import settings
+from django.http import HttpResponse
+from django.views.generic import View
+
 import pybars
-
-
-STAR_JSON_SETTING_NAME = 'METEOR_STAR_JSON'
 
 
 def read(path, default=None, encoding='utf8'):
@@ -34,12 +32,14 @@ def read_json(path):
         return loads(json_file.read())
 
 
-class ServerConfig(AppConfig):
+class MeteorView(View):
 
-    """Django config for dddp.server app."""
+    """Django DDP Meteor server view."""
 
-    name = 'dddp.server'
-    verbose_name = 'Django DDP Meteor Web Server'
+    http_method_names = ['get', 'head']
+
+    json_path = None
+    runtime_config = None
 
     manifest = None
     program_json = None
@@ -47,8 +47,6 @@ class ServerConfig(AppConfig):
     runtime_config = None
 
     star_json = None  # top level layout
-    server_json = None  # web server layout
-    web_browser_json = None  # web.browser (client) layout
 
     url_map = None
     internal_map = None
@@ -57,21 +55,21 @@ class ServerConfig(AppConfig):
     client_map = None  # web.browser (client) URL to path map
     html = '<!DOCTYPE html>\n<html><head><title>DDP App</title></head></html>'
 
-    def ready(self):
-        """Configure Django DDP server app."""
-        mimetypes.init()  # read and process /etc/mime.types
+    root_url_path_prefix = ''
+    bundled_js_css_prefix = '/'
+
+    def __init__(self, **kwargs):
+        """Initialisation for Django DDP server view."""
+        # super(...).__init__ assigns kwargs to instance.
+        super(MeteorView, self).__init__(**kwargs)
+
+        # read and process /etc/mime.types
+        mimetypes.init()
+
         self.url_map = {}
 
-        try:
-            json_path = getattr(settings, STAR_JSON_SETTING_NAME)
-        except AttributeError:
-            raise ImproperlyConfigured(
-                '%s setting required by dddp.server.view.' % (
-                    STAR_JSON_SETTING_NAME,
-                ),
-            )
-
-        self.star_json = read_json(json_path)
+        # process `star_json`
+        self.star_json = read_json(self.json_path)
         star_format = self.star_json['format']
         if star_format != 'site-archive-pre1':
             raise ValueError(
@@ -82,19 +80,20 @@ class ServerConfig(AppConfig):
             for program in self.star_json['programs']
         }
 
+        # process `bundle/programs/server/program.json` from build dir
         server_json_path = os.path.join(
-            os.path.dirname(json_path),
+            os.path.dirname(self.json_path),
             os.path.dirname(programs['server']['path']),
             'program.json',
         )
-        self.server_json = read_json(server_json_path)
-        server_format = self.server_json['format']
+        server_json = read_json(server_json_path)
+        server_format = server_json['format']
         if server_format != 'javascript-image-pre1':
             raise ValueError(
                 'Unknown Meteor server format: %r' % server_format,
             )
         self.server_load_map = {}
-        for item in self.server_json['load']:
+        for item in server_json['load']:
             item['path_full'] = os.path.join(
                 os.path.dirname(server_json_path),
                 item['path'],
@@ -124,12 +123,13 @@ class ServerConfig(AppConfig):
             ],
         )
 
+        # process `bundle/programs/web.browser/program.json` from build dir
         web_browser_json_path = os.path.join(
-            os.path.dirname(json_path),
+            os.path.dirname(self.json_path),
             programs['web.browser']['path'],
         )
-        self.web_browser_json = read_json(web_browser_json_path)
-        web_browser_format = self.web_browser_json['format']
+        web_browser_json = read_json(web_browser_json_path)
+        web_browser_format = web_browser_json['format']
         if web_browser_format != 'web-program-pre1':
             raise ValueError(
                 'Unknown Meteor web.browser format: %r' % (
@@ -138,7 +138,7 @@ class ServerConfig(AppConfig):
             )
         self.client_map = {}
         self.internal_map = {}
-        for item in self.web_browser_json['manifest']:
+        for item in web_browser_json['manifest']:
             item['path_full'] = os.path.join(
                 os.path.dirname(web_browser_json_path),
                 item['path'],
@@ -159,19 +159,19 @@ class ServerConfig(AppConfig):
         config = {
             'css': [
                 {'url': item['path']}
-                for item in self.web_browser_json['manifest']
+                for item in web_browser_json['manifest']
                 if item['type'] == 'css' and item['where'] == 'client'
             ],
             'js': [
                 {'url': item['path']}
-                for item in self.web_browser_json['manifest']
+                for item in web_browser_json['manifest']
                 if item['type'] == 'js' and item['where'] == 'client'
             ],
             'meteorRuntimeConfig': '"%s"' % (
                 dumps(self.runtime_config)
             ),
-            'rootUrlPathPrefix': '/app',
-            'bundledJsCssPrefix': '/app/',
+            'rootUrlPathPrefix': self.root_url_path_prefix,
+            'bundledJsCssPrefix': self.bundled_js_css_prefix,
             'inlineScriptsAllowed': False,
             'inline': None,
             'head': read(
@@ -187,3 +187,36 @@ class ServerConfig(AppConfig):
         compiler = pybars.Compiler()
         tmpl = compiler.compile(tmpl_raw)
         self.html = '<!DOCTYPE html>\n%s' % tmpl(config)
+
+    def get(self, request, path):
+        """Return HTML (or other related content) for Meteor."""
+        if path == '/meteor_runtime_config.js':
+            config = {
+                'DDP_DEFAULT_CONNECTION_URL': request.build_absolute_uri('/'),
+                'ROOT_URL': request.build_absolute_uri(
+                    '%s/' % self.runtime_config.get('ROOT_URL_PATH_PREFIX', ''),
+                ),
+                'ROOT_URL_PATH_PREFIX': '',
+            }
+            # Use HTTPS instead of HTTP if SECURE_SSL_REDIRECT is set
+            if config['DDP_DEFAULT_CONNECTION_URL'].startswith('http:') \
+                    and settings.SECURE_SSL_REDIRECT:
+                config['DDP_DEFAULT_CONNECTION_URL'] = 'https:%s' % (
+                    config['DDP_DEFAULT_CONNECTION_URL'].split(':', 1)[1],
+                )
+            config.update(self.runtime_config)
+            return HttpResponse(
+                '__meteor_runtime_config__ = %s;' % dumps(config),
+                content_type='text/javascript',
+            )
+        try:
+            file_path, content_type = self.url_map[path]
+            with open(file_path, 'r') as content:
+                return HttpResponse(
+                    content.read(),
+                    content_type=content_type,
+                )
+        except KeyError:
+            print(path)
+            return HttpResponse(self.html)
+            # raise Http404

@@ -1,6 +1,12 @@
 Change Log
 ==========
 
+0.12.0
+------
+* Get path to `star.json` from view config (defined in your urls.py) 
+  instead of from settings.
+* Dropped `dddp.server.views`, use `dddp.views` instead.
+
 0.11.0
 ------
 * Support more than 8KB of change data by splitting large payloads into 
