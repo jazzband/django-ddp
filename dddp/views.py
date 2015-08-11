@@ -1,9 +1,7 @@
 """Django DDP Server views."""
 from __future__ import print_function, absolute_import, unicode_literals
 
-import io
 import mimetypes
-import os.path
 
 from ejson import dumps, loads
 from django.conf import settings
@@ -62,6 +60,9 @@ class MeteorView(View):
         """Initialisation for Django DDP server view."""
         # super(...).__init__ assigns kwargs to instance.
         super(MeteorView, self).__init__(**kwargs)
+
+        # read and process /etc/mime.types
+        mimetypes.init()
 
         self.url_map = {}
 
@@ -187,8 +188,6 @@ class MeteorView(View):
 
     def get(self, request, path):
         """Return HTML (or other related content) for Meteor."""
-        if path[:1] != '/':
-            path = '/%s' % path
         if path == '/meteor_runtime_config.js':
             config = {
                 'DDP_DEFAULT_CONNECTION_URL': request.build_absolute_uri('/'),

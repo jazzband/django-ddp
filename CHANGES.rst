@@ -1,6 +1,28 @@
 Change Log
 ==========
 
+0.12.0
+------
+* Get path to `star.json` from view config (defined in your urls.py) 
+  instead of from settings.
+* Dropped `dddp.server.views`, use `dddp.views` instead.
+
+0.11.0
+------
+* Support more than 8KB of change data by splitting large payloads into 
+  multiple chunks.
+
+0.10.2
+------
+* Add `Logs` publication that can be configured to emit logs via DDP 
+  through the use of the `dddp.logging.DDPHandler` log handler.
+* Add option to dddp daemon to provide a BackdoorServer (telnet) for 
+  interactive debugging (REPL) at runtime.
+
+0.10.1
+------
+* Bugfix dddp.accounts forgot_password feature.
+
 0.10.0
 ------
 * Stop processing request middleware upon connection - see

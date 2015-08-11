@@ -5,6 +5,7 @@ from __future__ import absolute_import, unicode_literals, print_function
 import collections
 from copy import deepcopy
 import traceback
+import uuid
 
 # requirements
 import dbarray
@@ -599,6 +600,7 @@ class DDP(APIMixin):
                 'params_ejson': ejson.dumps(params),
             },
         )
+        this.subs.setdefault(sub.publication, set()).add(sub.pk)
         if not created:
             if not silent:
                 this.send({'msg': 'ready', 'subs': [id_]})
@@ -644,6 +646,7 @@ class DDP(APIMixin):
             for obj in qs:
                 payload = col.obj_change_as_msg(obj, REMOVED, meteor_ids)
                 this.send(payload)
+        this.subs[sub.publication].remove(sub.pk)
         sub.delete()
         if not silent:
             this.send({'msg': 'nosub', 'id': id_})
@@ -894,13 +897,32 @@ class DDP(APIMixin):
                     if my_connection_id in connection_ids:
                         # msg must go to connection that initiated the change
                         payload['_tx_id'] = this.ws.get_tx_id()
+                # header is sent in every payload
+                header = {
+                    'uuid': uuid.uuid1().int,  # UUID1 should be unique
+                    'seq': 1,  # increments for each 8KB chunk
+                    'fin': 0,  # zero if more chunks expected, 1 if last chunk.
+                }
+                data = ejson.dumps(payload)
                 cursor = connections[using].cursor()
-                cursor.execute(
-                    'NOTIFY "ddp", %s',
-                    [
-                        ejson.dumps(payload),
-                    ],
-                )
+                while data:
+                    hdr = ejson.dumps(header)
+                    # use all available payload space for chunk
+                    max_len = 8000 - len(hdr) - 100
+                    # take a chunk from data
+                    chunk, data = data[:max_len], data[max_len:]
+                    if not data:
+                        # last chunk, set fin=1.
+                        header['fin'] = 1
+                        hdr = ejson.dumps(header)
+                    # print('NOTIFY: %s' % hdr)
+                    cursor.execute(
+                        'NOTIFY "ddp", %s',
+                        [
+                            '%s|%s' % (hdr, chunk),  # pipe separates hdr|chunk.
+                        ],
+                    )
+                    header['seq'] += 1  # increment sequence.
 
 
 API = DDP()
