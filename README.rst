@@ -103,6 +103,19 @@ Add ddp.py to your Django application:
         [Book, Author, AllBooks, BooksByAuthorEmail]
     )
 
+Start the Django DDP service:
+
+.. code:: sh
+
+    DJANGO_SETTINGS_MODULE=myproject.settings dddp
+
+
+Using django-ddp as a secondary DDP connection (RAPID DEVELOPMENT)
+------------------------------------------------------------------
+
+Running in this manner allows rapid development through use of the hot 
+code push features provided by Meteor.
+
 Connect your Meteor application to the Django DDP service:
 
 .. code:: javascript
@@ -118,18 +131,52 @@ Connect your Meteor application to the Django DDP service:
         Django.subscribe('BooksByAuthorEmail', 'janet@evanovich.com');
     }
 
-Start the Django DDP service:
-
-.. code:: sh
-
-    DJANGO_SETTINGS_MODULE=myproject.settings dddp
-
-In a separate terminal, start Meteor (from within your meteor
-application directory):
+Start Meteor (from within your meteor application directory):
 
 .. code:: sh
 
     meteor
+
+Using django-ddp as the primary DDP connection (RECOMMENDED)
+------------------------------------------------------------
+
+If you'd prefer to not have two DDP connections (one to Meteor and one 
+to django-ddp) you can set the `DDP_DEFAULT_CONNECTION_URL` environment 
+variable to use the specified URL as the primary DDP connection in 
+Meteor.  When doing this, you won't need to use `DDP.connect(...)` or 
+specify `{connection: Django}` on your collections.  Running with 
+django-ddp as the primary connection is recommended, and indeed required 
+if you wish to use `dddp.accounts` to provide authentication using 
+`django.contrib.auth` to your meteor app.
+
+.. code:: sh
+
+    DDP_DEFAULT_CONNECTION_URL=http://localhost:8000/ meteor
+
+
+Serving your Meteor applications from django-ddp
+------------------------------------------------
+
+First, you will need to build your meteor app into a directory (examples 
+below assume target directory named `myapp`):
+
+.. code:: sh
+
+    meteor build ../myapp
+
+Then, add a MeteorView to your urls.py:
+
+.. code:: python
+
+    from dddp.views import MeteorView
+
+    urlpatterns = patterns(
+        url('^(?P<path>/.*)$', MeteorView.as_view(
+            json_path=os.path.join(
+                settings.PROJ_ROOT, 'myapp', 'bundle', 'star.json',
+            ),
+        ),
+    )
 
 
 Adding API endpoints (server method definitions)

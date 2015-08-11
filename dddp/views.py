@@ -63,6 +63,9 @@ class MeteorView(View):
         # super(...).__init__ assigns kwargs to instance.
         super(MeteorView, self).__init__(**kwargs)
 
+        # read and process /etc/mime.types
+        mimetypes.init()
+
         self.url_map = {}
 
         # process `star_json`
