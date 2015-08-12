@@ -1,7 +1,9 @@
 """Django DDP Server views."""
 from __future__ import print_function, absolute_import, unicode_literals
 
+import io
 import mimetypes
+import os.path
 
 from ejson import dumps, loads
 from django.conf import settings
