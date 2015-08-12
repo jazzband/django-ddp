@@ -107,12 +107,12 @@ THREAD_LOCAL = ThreadLocal()
 METEOR_ID_CHARS = u'23456789ABCDEFGHJKLMNPQRSTWXYZabcdefghijkmnopqrstuvwxyz'
 
 
-def meteor_random_id(name=None):
+def meteor_random_id(name=None, length=17):
     if name is None:
         stream = THREAD_LOCAL.alea_random
     else:
         stream = THREAD_LOCAL.random_streams[name]
-    return stream.random_string(17, METEOR_ID_CHARS)
+    return stream.random_string(length, METEOR_ID_CHARS)
 
 
 def autodiscover():
