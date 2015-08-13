@@ -1,6 +1,15 @@
 Change Log
 ==========
 
+0.12.1
+------
+* Add `AleaIdMixin` which provides `aid = AleaIdField(unique=True)` to 
+  models.
+* Use `AleaIdField(unique=True)` wherever possible when translating 
+  between Meteor style identifiers and Django primary keys, reducing 
+  round trips to the database and hence drastically improving 
+  performance when such fields are available.
+
 0.12.0
 ------
 * Get path to `star.json` from view config (defined in your urls.py) 

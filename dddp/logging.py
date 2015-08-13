@@ -13,7 +13,6 @@ class DDPHandler(logging.Handler):
     """Logging handler that streams log events via DDP to the current client."""
 
     def __init__(self, *args, **kwargs):
-        print(self.__class__, args, kwargs)
         self.logger = logging.getLogger('django.db.backends')
         self.logger.info('Test')
         super(DDPHandler, self).__init__(*args, **kwargs)

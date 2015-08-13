@@ -29,7 +29,9 @@ import ejson
 from dddp import (
     AlreadyRegistered, THREAD_LOCAL as this, ADDED, CHANGED, REMOVED,
 )
-from dddp.models import Connection, Subscription, get_meteor_id, get_meteor_ids
+from dddp.models import (
+    AleaIdField, Connection, Subscription, get_meteor_id, get_meteor_ids,
+)
 
 
 XMIN = {'select': {'xmin': "'xmin'"}}
@@ -407,6 +409,15 @@ class Collection(APIMixin):
                 )
             elif isinstance(field, django.contrib.postgres.fields.ArrayField):
                 fields[field.name] = field.to_python(fields.pop(field.name))
+            elif (
+                isinstance(field, AleaIdField)
+            ) and (
+                not field.null
+            ) and (
+                field.name == 'aid'
+            ):
+                # This will be sent as the `id`, don't send it in `fields`.
+                fields.pop(field.name)
         for field in meta.local_many_to_many:
             fields['%s_ids' % field.name] = get_meteor_ids(
                 field.rel.to, fields.pop(field.name),
@@ -612,9 +623,25 @@ class DDP(APIMixin):
                 model_name=model_name(qs.model),
                 collection_name=col.name,
             )
-            meteor_ids = get_meteor_ids(
-                qs.model, qs.values_list('pk', flat=True),
-            )
+            if isinstance(col.model._meta.pk, AleaIdField):
+                meteor_ids = None
+            elif len([
+                field
+                for field
+                in col.model._meta.local_fields
+                if (
+                    isinstance(field, AleaIdField)
+                ) and (
+                    field.unique
+                ) and (
+                    not field.null
+                )
+            ]) == 1:
+                meteor_ids = None
+            else:
+                meteor_ids = get_meteor_ids(
+                    qs.model, qs.values_list('pk', flat=True),
+                )
             for obj in qs:
                 payload = col.obj_change_as_msg(obj, ADDED, meteor_ids)
                 this.send(payload)
@@ -632,9 +659,12 @@ class DDP(APIMixin):
             connection=this.ws.connection, sub_id=id_,
         )
         for col, qs in self.sub_unique_objects(sub):
-            meteor_ids = get_meteor_ids(
-                qs.model, qs.values_list('pk', flat=True),
-            )
+            if isinstance(col.model._meta.pk, AleaIdField):
+                meteor_ids = None
+            else:
+                meteor_ids = get_meteor_ids(
+                    qs.model, qs.values_list('pk', flat=True),
+                )
             for obj in qs:
                 payload = col.obj_change_as_msg(obj, REMOVED, meteor_ids)
                 this.send(payload)
