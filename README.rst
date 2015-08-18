@@ -237,4 +237,4 @@ Contributors
 .. _PostgreSQL: http://postgresql.org/
 .. _psycopg2: http://initd.org/psycopg/
 .. _WebSockets: http://www.w3.org/TR/websockets/
-.. _Meteor: http://meteor.com/:0
+.. _Meteor: http://meteor.com/
