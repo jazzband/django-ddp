@@ -214,9 +214,16 @@ class AleaIdField(models.CharField):
 
     def __init__(self, *args, **kwargs):
         """Assume max_length of 17 to match Meteor implementation."""
+        kwargs['blank'] = True
         kwargs.setdefault('verbose_name', 'Alea ID')
         kwargs.setdefault('max_length', 17)
         super(AleaIdField, self).__init__(*args, **kwargs)
+
+    def deconstruct(self):
+        """Return arguments to pass to __init__() to re-create this field."""
+        name, path, args, kwargs = super(AleaIdField, self).deconstruct()
+        del kwargs['blank']
+        return name, path, args, kwargs
 
     def get_seeded_value(self, instance):
         """Generate a syncronised value."""
