@@ -1,6 +1,11 @@
 Change Log
 ==========
 
+0.12.2
+------
+* Set blank=True on AleaIdField, allowing adding items without inventing 
+  IDs yourself.
+
 0.12.1
 ------
 * Add `AleaIdMixin` which provides `aid = AleaIdField(unique=True)` to 
