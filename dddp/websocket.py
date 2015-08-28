@@ -106,8 +106,6 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
     version = None
     support = None
     connection = None
-    subs = None
-    request = None
     remote_ids = None
     base_handler = BaseHandler()
 
@@ -132,7 +130,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             '{0[REMOTE_ADDR]}:{0[REMOTE_PORT]}'.format(
                 self.ws.environ,
             )
-        self.subs = {}
+        this.subs = {}
         self.logger.info('+ %s OPEN', self)
         self.send('o')
         self.send('a["{\\"server_id\\":\\"0\\"}"]')
@@ -160,32 +158,35 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             try:
                 msgs = ejson.loads(message)
             except ValueError, err:
-                raise MeteorError(400, 'Data is not valid EJSON')
+                self.error(400, 'Data is not valid EJSON')
+                return
             if not isinstance(msgs, list):
-                raise MeteorError(400, 'Invalid EJSON messages')
+                self.error(400, 'Invalid EJSON messages')
+                return
 
             # process individual messages
             while msgs:
                 # parse message payload
                 raw = msgs.pop(0)
                 try:
-                    try:
-                        data = ejson.loads(raw)
-                    except ValueError, err:
-                        raise MeteorError(400, 'Data is not valid EJSON')
-                    if not isinstance(data, dict):
-                        self.error(400, 'Invalid EJSON message payload', raw)
-                        continue
-                    try:
-                        msg = data.pop('msg')
-                    except KeyError:
-                        raise MeteorError(
-                            400, 'Bad request', None, {'offendingMessage': data}
-                        )
-                    # dispatch message
+                    data = ejson.loads(raw)
+                except ValueError, err:
+                    self.error(400, 'Data is not valid EJSON')
+                    continue
+                if not isinstance(data, dict):
+                    self.error(400, 'Invalid EJSON message payload', raw)
+                    continue
+                try:
+                    msg = data.pop('msg')
+                except KeyError:
+                    self.error(
+                        400, 'Bad request', offendingMessage=data,
+                    )
+                    continue
+                # dispatch message
+                try:
                     self.dispatch(msg, data)
                 except MeteorError, err:
-                    traceback.print_exc()
                     self.error(err)
                 except Exception, err:
                     traceback.print_exc()
@@ -200,13 +201,16 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         """Dispatch msg to appropriate recv_foo handler."""
         # enforce calling 'connect' first
         if self.connection is None and msg != 'connect':
-            raise MeteorError(400, 'Must connect first')
+            self.error(400, 'Must connect first')
+            return
 
         # lookup method handler
         try:
             handler = getattr(self, 'recv_%s' % msg)
         except (AttributeError, UnicodeEncodeError):
-            raise MeteorError(404, 'Method not found')
+            print('Method not found: %s %r' % (msg, kwargs))
+            self.error(404, 'Method not found', msg='result')
+            return
 
         # validate handler arguments
         validate_kwargs(handler, kwargs)
@@ -216,7 +220,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             handler(**kwargs)
         except Exception, err:  # print stack trace --> pylint: disable=W0703
             traceback.print_exc()
-            self.error(MeteorError(500, 'Internal server error', err))
+            self.error(500, 'Internal server error', err)
 
     def send(self, data, tx_id=None):
         """Send `data` (raw string or EJSON payload) to WebSocket client."""
@@ -273,7 +277,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         kwargs['msg'] = msg
         self.send(kwargs)
 
-    def error(self, err, reason=None, detail=None, **kwargs):
+    def error(self, err, reason=None, detail=None, msg='error', **kwargs):
         """Send EJSON error to remote."""
         if isinstance(err, MeteorError):
             (
@@ -297,12 +301,13 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         if kwargs:
             data.update(kwargs)
         self.logger.error('! %s %r', self, data)
-        self.reply('error', **data)
+        self.reply(msg, **data)
 
     def recv_connect(self, version=None, support=None, session=None):
         """DDP connect handler."""
         if self.connection is not None:
             self.error(
+                400,
                 'Session already established.',
                 reason='Current session in detail.',
                 detail=self.connection.connection_id,
@@ -312,21 +317,11 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         elif version not in support:
             self.error('Client version/support mismatch.')
         else:
-            self.request = WSGIRequest(self.ws.environ)
-            # Apply request middleware (so we get request.user and other attrs)
-            # pylint: disable=protected-access
-            if self.base_handler._request_middleware is None:
-                self.base_handler.load_middleware()
-            for middleware_method in self.base_handler._request_middleware:
-                response = middleware_method(self.request)
-                if response:
-                    raise ValueError(response)
+            this.request = WSGIRequest(self.ws.environ)
             this.ws = self
-            this.request = self.request
             this.send = self.send
             this.reply = self.reply
             this.error = self.error
-            this.request.session.save()
 
             from dddp.models import Connection
             cur = connection.cursor()

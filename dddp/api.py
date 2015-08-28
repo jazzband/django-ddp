@@ -5,6 +5,7 @@ from __future__ import absolute_import, unicode_literals, print_function
 import collections
 from copy import deepcopy
 import traceback
+import uuid
 
 # requirements
 import dbarray
@@ -29,7 +30,9 @@ from dddp import (
     AlreadyRegistered, THREAD_LOCAL as this, ADDED, CHANGED, REMOVED,
     UserIdBase,
 )
-from dddp.models import Connection, Subscription, get_meteor_id, get_meteor_ids
+from dddp.models import (
+    AleaIdField, Connection, Subscription, get_meteor_id, get_meteor_ids,
+)
 
 
 XMIN = {'select': {'xmin': "'xmin'"}}
@@ -162,6 +165,10 @@ class APIMixin(object):
     def api_endpoint(self, api_path):
         """Return API endpoint for given api_path."""
         return self.api_path_map()[api_path]
+
+    def ready(self):
+        """Initialisation (setup lookups and signal handlers)."""
+        pass
 
 
 def model_name(model):
@@ -484,6 +491,15 @@ class Collection(APIMixin):
                 )
             elif isinstance(field, django.contrib.postgres.fields.ArrayField):
                 fields[field.name] = field.to_python(fields.pop(field.name))
+            elif (
+                isinstance(field, AleaIdField)
+            ) and (
+                not field.null
+            ) and (
+                field.name == 'aid'
+            ):
+                # This will be sent as the `id`, don't send it in `fields`.
+                fields.pop(field.name)
         for field in meta.local_many_to_many:
             fields['%s_ids' % field.name] = get_meteor_ids(
                 field.rel.to, fields.pop(field.name),
@@ -648,30 +664,37 @@ class DDP(APIMixin):
     @api_endpoint
     def sub(self, id_, name, *params):
         """Create subscription, send matched objects that haven't been sent."""
+        return self.do_sub(id_, name, False, *params)
+
+    def do_sub(self, id_, name, silent, *params):
+        """Subscribe the current thread to the specified publication."""
         try:
             pub = self.get_pub_by_name(name)
         except KeyError:
-            this.send({
-                'msg': 'nosub',
-                'error': {
-                    'error': 404,
-                    'errorType': 'Meteor.Error',
-                    'message': 'Subscription not found [404]',
-                    'reason': 'Subscription not found',
-                },
-            })
+            if not silent:
+                this.send({
+                    'msg': 'nosub',
+                    'error': {
+                        'error': 404,
+                        'errorType': 'Meteor.Error',
+                        'message': 'Subscription not found [404]',
+                        'reason': 'Subscription not found',
+                    },
+                })
             return
         sub, created = Subscription.objects.get_or_create(
             connection_id=this.ws.connection.pk,
             sub_id=id_,
-            user_id=this.request.user.pk,
+            user_id=getattr(this, 'user_id', None),
             defaults={
                 'publication': pub.name,
                 'params_ejson': ejson.dumps(params),
             },
         )
+        this.subs.setdefault(sub.publication, set()).add(sub.pk)
         if not created:
-            this.send({'msg': 'ready', 'subs': [id_]})
+            if not silent:
+                this.send({'msg': 'ready', 'subs': [id_]})
             return
         # re-read from DB so we can get transaction ID (xmin)
         sub = Subscription.objects.extra(**XMIN).get(pk=sub.pk)
@@ -682,29 +705,55 @@ class DDP(APIMixin):
                 model_name=model_name(qs.model),
                 collection_name=col.name,
             )
-            meteor_ids = get_meteor_ids(
-                qs.model, qs.values_list('pk', flat=True),
-            )
+            if isinstance(col.model._meta.pk, AleaIdField):
+                meteor_ids = None
+            elif len([
+                field
+                for field
+                in col.model._meta.local_fields
+                if (
+                    isinstance(field, AleaIdField)
+                ) and (
+                    field.unique
+                ) and (
+                    not field.null
+                )
+            ]) == 1:
+                meteor_ids = None
+            else:
+                meteor_ids = get_meteor_ids(
+                    qs.model, qs.values_list('pk', flat=True),
+                )
             for obj in qs:
                 payload = col.obj_change_as_msg(obj, ADDED, meteor_ids)
                 this.send(payload)
-        this.send({'msg': 'ready', 'subs': [id_]})
+        if not silent:
+            this.send({'msg': 'ready', 'subs': [id_]})
 
     @api_endpoint
     def unsub(self, id_):
         """Remove a subscription."""
+        self.do_unsub(id_, False)
+
+    def do_unsub(self, id_, silent):
+        """Unsubscribe the current thread from the specified subscription id."""
         sub = Subscription.objects.get(
             connection=this.ws.connection, sub_id=id_,
         )
         for col, qs in self.sub_unique_objects(sub):
-            meteor_ids = get_meteor_ids(
-                qs.model, qs.values_list('pk', flat=True),
-            )
+            if isinstance(col.model._meta.pk, AleaIdField):
+                meteor_ids = None
+            else:
+                meteor_ids = get_meteor_ids(
+                    qs.model, qs.values_list('pk', flat=True),
+                )
             for obj in qs:
                 payload = col.obj_change_as_msg(obj, REMOVED, meteor_ids)
                 this.send(payload)
+        this.subs[sub.publication].remove(sub.pk)
         sub.delete()
-        this.send({'msg': 'nosub', 'id': id_})
+        if not silent:
+            this.send({'msg': 'nosub', 'id': id_})
 
     @api_endpoint
     def method(self, method, params, id_):
@@ -712,7 +761,17 @@ class DDP(APIMixin):
         try:
             handler = self.api_path_map()[method]
         except KeyError:
-            this.error('Unknown method: %s' % method)
+            print('Unknown method: %s %r' % (method, params))
+            this.send({
+                'msg': 'result',
+                'id': id_,
+                'error': {
+                    'error': 404,
+                    'errorType': 'Meteor.Error',
+                    'message': 'Unknown method: %s %r' % (method, params),
+                    'reason': 'Method not found',
+                },
+            })
             return
         params_repr = repr(params)
         try:
@@ -776,6 +835,9 @@ class DDP(APIMixin):
         signals.post_save.connect(self.on_post_save)
         signals.post_delete.connect(self.on_post_delete)
         signals.m2m_changed.connect(self.on_m2m_changed)
+        # call ready on each registered API endpoint
+        for api_provider in self.api_providers:
+            api_provider.ready()
 
     def on_pre_migrate(self, sender, **kwargs):
         """Pre-migrate signal handler."""
@@ -939,13 +1001,32 @@ class DDP(APIMixin):
                     if my_connection_id in connection_ids:
                         # msg must go to connection that initiated the change
                         payload['_tx_id'] = this.ws.get_tx_id()
+                # header is sent in every payload
+                header = {
+                    'uuid': uuid.uuid1().int,  # UUID1 should be unique
+                    'seq': 1,  # increments for each 8KB chunk
+                    'fin': 0,  # zero if more chunks expected, 1 if last chunk.
+                }
+                data = ejson.dumps(payload)
                 cursor = connections[using].cursor()
-                cursor.execute(
-                    'NOTIFY "ddp", %s',
-                    [
-                        ejson.dumps(payload),
-                    ],
-                )
+                while data:
+                    hdr = ejson.dumps(header)
+                    # use all available payload space for chunk
+                    max_len = 8000 - len(hdr) - 100
+                    # take a chunk from data
+                    chunk, data = data[:max_len], data[max_len:]
+                    if not data:
+                        # last chunk, set fin=1.
+                        header['fin'] = 1
+                        hdr = ejson.dumps(header)
+                    # print('NOTIFY: %s' % hdr)
+                    cursor.execute(
+                        'NOTIFY "ddp", %s',
+                        [
+                            '%s|%s' % (hdr, chunk),  # pipe separates hdr|chunk.
+                        ],
+                    )
+                    header['seq'] += 1  # increment sequence.
 
 
 API = DDP()

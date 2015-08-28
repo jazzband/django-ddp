@@ -1,6 +1,60 @@
 Change Log
 ==========
 
+0.12.2
+------
+* Set blank=True on AleaIdField, allowing adding items without inventing 
+  IDs yourself.
+
+0.12.1
+------
+* Add `AleaIdMixin` which provides `aid = AleaIdField(unique=True)` to 
+  models.
+* Use `AleaIdField(unique=True)` wherever possible when translating 
+  between Meteor style identifiers and Django primary keys, reducing 
+  round trips to the database and hence drastically improving 
+  performance when such fields are available.
+
+0.12.0
+------
+* Get path to `star.json` from view config (defined in your urls.py) 
+  instead of from settings.
+* Dropped `dddp.server.views`, use `dddp.views` instead.
+
+0.11.0
+------
+* Support more than 8KB of change data by splitting large payloads into 
+  multiple chunks.
+
+0.10.2
+------
+* Add `Logs` publication that can be configured to emit logs via DDP 
+  through the use of the `dddp.logging.DDPHandler` log handler.
+* Add option to dddp daemon to provide a BackdoorServer (telnet) for 
+  interactive debugging (REPL) at runtime.
+
+0.10.1
+------
+* Bugfix dddp.accounts forgot_password feature.
+
+0.10.0
+------
+* Stop processing request middleware upon connection - see
+  https://github.com/commoncode/django-ddp/commit/e7b38b89db5c4e252ac37566f626b5e9e1651a29 
+  for rationale.  Access to `this.request.user` is gone.
+* Add `this.user` handling to dddp.accounts.
+
+0.9.14
+------
+* Fix ordering of user added vs login ready in dddp.accounts 
+  authentication methods.
+
+0.9.13
+------
+* Add dddp.models.get_object_ids helper function.
+* Add ObjectMappingMixini abstract model mixin providing
+  GenericRelation back to ObjectMapping model.
+
 0.9.12
 ------
 * Bugfix /app.model/schema helper method on collections to work with 
