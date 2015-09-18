@@ -6,16 +6,9 @@ import logging
 from dddp import THREAD_LOCAL as this, meteor_random_id, ADDED
 
 
-
-
 class DDPHandler(logging.Handler):
 
     """Logging handler that streams log events via DDP to the current client."""
-
-    def __init__(self, *args, **kwargs):
-        self.logger = logging.getLogger('django.db.backends')
-        self.logger.info('Test')
-        super(DDPHandler, self).__init__(*args, **kwargs)
 
     def emit(self, record):
         """Emit a formatted log record via DDP."""
@@ -25,8 +18,8 @@ class DDPHandler(logging.Handler):
                 'collection': 'logs',
                 'id': meteor_random_id('/collection/logs'),
                 'fields': {
-                    # 'name': record.name,
-                    # 'levelno': record.levelno,
+                    'name': record.name,
+                    'levelno': record.levelno,
                     'levelname': record.levelname,
                     # 'pathname': record.pathname,
                     # 'lineno': record.lineno,

@@ -1,16 +1,56 @@
 #!/usr/bin/env python
 """Django/PostgreSQL implementation of the Meteor DDP service."""
-import os.path
 from setuptools import setup, find_packages
+
+CLASSIFIERS = [
+    # Beta status until 1.0 is released
+    "Development Status :: 4 - Beta",
+
+    # Who and what the project is for
+    "Intended Audience :: Developers",
+    "Topic :: Database",
+    "Topic :: Internet",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content :: CGI Tools/Libraries",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Internet :: WWW/HTTP :: Session",
+    "Topic :: Internet :: WWW/HTTP :: WSGI",
+    "Topic :: Internet :: WWW/HTTP :: WSGI :: Server",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development :: Object Brokering",
+    "Topic :: System :: Distributed Computing",
+
+    # License classifiers
+    "License :: OSI Approved :: MIT License",
+    "License :: DFSG approved",
+    "License :: OSI Approved",
+
+    # Generally, we support the following.
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 2",
+    "Programming Language :: Python :: 3",
+    "Framework :: Django",
+
+    # Specifically, we support the following releases.
+    "Programming Language :: Python :: 2.7",
+    "Programming Language :: Python :: 3.2",
+    "Programming Language :: Python :: 3.3",
+    "Programming Language :: Python :: 3.4",
+    "Framework :: Django :: 1.7",
+    "Framework :: Django :: 1.8",
+]
 
 setup(
     name='django-ddp',
-    version='0.12.2',
+    version='0.13.0',
     description=__doc__,
     long_description=open('README.rst').read(),
     author='Tyson Clugg',
     author_email='tyson@clugg.net',
     url='https://github.com/commoncode/django-ddp',
+    license='MIT',
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
@@ -28,11 +68,5 @@ setup(
             'dddp=dddp.main:main',
         ],
     },
-    classifiers=[
-        "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 2",
-        "Programming Language :: Python :: 3",
-        "Topic :: Internet :: WWW/HTTP",
-        "Topic :: Software Development :: Libraries",
-    ],
+    classifiers=CLASSIFIERS,
 )
