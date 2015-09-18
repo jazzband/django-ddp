@@ -23,9 +23,15 @@ ADDED = 'added'
 CHANGED = 'changed'
 REMOVED = 'removed'
 
+_GREEN = {}
+
 
 def greenify():
     """Patch threading and psycopg2 modules for green threads."""
+    # no need to greenify twice.
+    if _GREEN:
+        return
+
     from gevent.monkey import patch_all, saved
     if ('threading' in sys.modules) and ('threading' not in saved):
         raise Exception('threading module loaded before patching!')
@@ -33,6 +39,9 @@ def greenify():
 
     from psycogreen.gevent import patch_psycopg
     patch_psycopg()
+
+    # ensure we don't greenify again
+    _GREEN[True] = True
 
 
 class AlreadyRegistered(Exception):
