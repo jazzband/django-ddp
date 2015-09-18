@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 """Django/PostgreSQL implementation of the Meteor DDP service."""
-import os.path
 from setuptools import setup, find_packages
 
 CLASSIFIERS = [
