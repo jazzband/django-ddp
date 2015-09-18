@@ -1,6 +1,19 @@
 Change Log
 ==========
 
+0.13.0
+------
+* Abstract DDPLauncher out from dddp.main.serve to permit use from other contexts.
+* Allow Ctrl-C (Break) handling at any time.
+* Only run async DB connection when PostgresGreenlet is running.
+* Remove unused import `os.path` from setup.
+* Include `name` and `levelno` attributes in DDP emitted log records.
+* Don't attempt to monkey patch more than once.
+* Include exception info in `logger.error` logging call.
+* Update project classifiers to show specific versions of supported dependencies (fixes #6).
+* Use sane default options for `python setup.py bdist_wheel`.
+* Fixed README link to meteor - thanks @LegoStormtroopr.
+
 0.12.2
 ------
 * Set blank=True on AleaIdField, allowing adding items without inventing 
