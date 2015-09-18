@@ -300,7 +300,15 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             data['detail'] = detail
         if kwargs:
             data.update(kwargs)
-        self.logger.error('! %s %r', self, data)
+        record = {
+            'exc_info': sys.exc_info(),
+            'extra': {
+                'request': this.request,
+            },
+        }
+        if record['exc_info'] == (None, None, None):
+            del record['exc_info']
+        self.logger.error('! %s %r', self, data, exc_info=exc_info, **record)
         self.reply(msg, **data)
 
     def recv_connect(self, version=None, support=None, session=None):
