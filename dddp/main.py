@@ -191,8 +191,9 @@ class DDPLauncher(object):
         self.logger.debug('PostgresGreenlet start')
         self._stop_event.clear()
         self.print('=> Discovering DDP endpoints...')
-        for api_path in sorted(self.api.api_path_map()):
-            self.logger.debug('    %s', api_path)
+        if self.verbosity > 1:
+            for api_path in sorted(self.api.api_path_map()):
+                print('    %s' % api_path)
 
         # start greenlets
         self.pgworker.start()
