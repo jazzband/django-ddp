@@ -308,7 +308,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         }
         if record['exc_info'] == (None, None, None):
             del record['exc_info']
-        self.logger.error('! %s %r', self, data, exc_info=exc_info, **record)
+        self.logger.error('! %s %r', self, data, **record)
         self.reply(msg, **data)
 
     def recv_connect(self, version=None, support=None, session=None):

@@ -1,6 +1,7 @@
 """Django DDP logging helpers."""
 from __future__ import absolute_import, print_function
 
+import datetime
 import logging
 
 from dddp import THREAD_LOCAL as this, meteor_random_id, ADDED
@@ -18,6 +19,7 @@ class DDPHandler(logging.Handler):
                 'collection': 'logs',
                 'id': meteor_random_id('/collection/logs'),
                 'fields': {
+                    'created': datetime.datetime.fromtimestamp(record.created),
                     'name': record.name,
                     'levelno': record.levelno,
                     'levelname': record.levelname,

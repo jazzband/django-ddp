@@ -18,22 +18,29 @@ import geventwebsocket.handler
 Addr = collections.namedtuple('Addr', ['host', 'port'])
 
 
+def common_headers(environ, **kwargs):
+    """Return list of common headers for SockJS HTTP responses."""
+    return [
+        # DDP doesn't use cookies or HTTP level auth, so CSRF attacks are
+        # ineffective.  We can safely allow cross-domain DDP connections and
+        # developers may choose to allow anonymous access to publications and
+        # RPC methods as they see fit.  More to the point, developers should
+        # restrict access to publications and RPC endpoints as appropriate.
+        ('Access-Control-Allow-Origin', '*'),
+        ('Access-Control-Allow-Credentials', 'false'),
+        ('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0'),
+        ('Connection', 'keep-alive'),
+        ('Vary', 'Origin'),
+    ]
+
+
 def ddpp_sockjs_xhr(environ, start_response):
     """Dummy method that doesn't handle XHR requests."""
     start_response(
         '404 Not found',
         [
             ('Content-Type', 'text/plain; charset=UTF-8'),
-            (
-                'Access-Control-Allow-Origin',
-                '/'.join(environ['HTTP_REFERER'].split('/')[:3]),
-            ),
-            ('Access-Control-Allow-Credentials', 'true'),
-            #  ('access-control-allow-credentials', 'true'),
-            ('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0'),
-            ('Connection', 'keep-alive'),
-            ('Vary', 'Origin'),
-        ],
+        ] + common_headers(environ),
     )
     yield 'No.'
 
@@ -47,16 +54,7 @@ def ddpp_sockjs_info(environ, start_response):
         '200 OK',
         [
             ('Content-Type', 'application/json; charset=UTF-8'),
-            (
-                'Access-Control-Allow-Origin',
-                '/'.join(environ['HTTP_REFERER'].split('/')[:3]),
-            ),
-            ('Access-Control-Allow-Credentials', 'true'),
-            #  ('access-control-allow-credentials', 'true'),
-            ('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0'),
-            ('Connection', 'keep-alive'),
-            ('Vary', 'Origin'),
-        ],
+        ] + common_headers(environ),
     )
     yield ejson.dumps(collections.OrderedDict([
         ('websocket', True),
@@ -193,8 +191,9 @@ class DDPLauncher(object):
         self.logger.debug('PostgresGreenlet start')
         self._stop_event.clear()
         self.print('=> Discovering DDP endpoints...')
-        for api_path in sorted(self.api.api_path_map()):
-            self.logger.debug('    %s', api_path)
+        if self.verbosity > 1:
+            for api_path in sorted(self.api.api_path_map()):
+                print('    %s' % api_path)
 
         # start greenlets
         self.pgworker.start()

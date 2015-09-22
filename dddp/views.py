@@ -1,7 +1,8 @@
 """Django DDP Server views."""
-from __future__ import print_function, absolute_import, unicode_literals
+from __future__ import absolute_import, unicode_literals
 
 import io
+import logging
 import mimetypes
 import os.path
 
@@ -36,6 +37,7 @@ class MeteorView(View):
 
     """Django DDP Meteor server view."""
 
+    logger = logging.getLogger(__name__)
     http_method_names = ['get', 'head']
 
     json_path = None
@@ -44,7 +46,6 @@ class MeteorView(View):
     manifest = None
     program_json = None
     program_json_path = None
-    runtime_config = None
 
     star_json = None  # top level layout
 
@@ -60,6 +61,7 @@ class MeteorView(View):
 
     def __init__(self, **kwargs):
         """Initialisation for Django DDP server view."""
+        self.runtime_config = {}
         # super(...).__init__ assigns kwargs to instance.
         super(MeteorView, self).__init__(**kwargs)
 
@@ -146,6 +148,8 @@ class MeteorView(View):
             if item['where'] == 'client':
                 if '?' in item['url']:
                     item['url'] = item['url'].split('?', 1)[0]
+                if item['url'].startswith('/'):
+                    item['url'] = item['url'][1:]
                 self.client_map[item['url']] = item
                 self.url_map[item['url']] = (
                     item['path_full'],
@@ -190,7 +194,13 @@ class MeteorView(View):
 
     def get(self, request, path):
         """Return HTML (or other related content) for Meteor."""
-        if path == '/meteor_runtime_config.js':
+        self.logger.debug(
+            '[%s:%s] %s %s %s',
+            request.META['REMOTE_ADDR'], request.META['REMOTE_PORT'],
+            request.method, request.path,
+            request.META['SERVER_PROTOCOL'],
+        )
+        if path == 'meteor_runtime_config.js':
             config = {
                 'DDP_DEFAULT_CONNECTION_URL': request.build_absolute_uri('/'),
                 'ROOT_URL': request.build_absolute_uri(
@@ -217,6 +227,4 @@ class MeteorView(View):
                     content_type=content_type,
                 )
         except KeyError:
-            print(path)
             return HttpResponse(self.html)
-            # raise Http404

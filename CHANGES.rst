@@ -1,6 +1,20 @@
 Change Log
 ==========
 
+0.14.0
+------
+* Correctly handle serving app content from the root path of a domain.
+* Account security tokens are now calculated for each minute allowing for finer grained token expiry.
+* Fix bug in error handling where invalid arguments were being passed to `logging.error()`.
+* Change setting names (and implied meanings):
+    - DDP_PASSWORD_RESET_DAYS_VALID becomes 
+      DDP_PASSWORD_RESET_MINUTES_VALID.
+    - DDP_LOGIN_RESUME_DAYS_VALID becomes DDP_LOGIN_RESUME_MINUTES_VALID.
+* Include `created` field in logs collection.
+* Stop depending on `Referrer` HTTP header which is optional.
+* Honour `--verbosity` in `dddp` command, now showing API endpoints in more verbose modes.
+* Updated `dddp.test` to Meteor 1.2 and also showing example of URL config to serve Meteor files from Python.
+
 0.13.0
 ------
 * Abstract DDPLauncher out from dddp.main.serve to permit use from other contexts.
