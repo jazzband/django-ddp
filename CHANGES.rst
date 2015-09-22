@@ -1,6 +1,10 @@
 Change Log
 ==========
 
+0.14.0
+------
+* Correctly handle serving app content from the root path of a domain.
+
 0.13.0
 ------
 * Abstract DDPLauncher out from dddp.main.serve to permit use from other contexts.

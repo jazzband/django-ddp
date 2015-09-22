@@ -46,7 +46,6 @@ class MeteorView(View):
     manifest = None
     program_json = None
     program_json_path = None
-    runtime_config = None
 
     star_json = None  # top level layout
 
@@ -62,6 +61,7 @@ class MeteorView(View):
 
     def __init__(self, **kwargs):
         """Initialisation for Django DDP server view."""
+        self.runtime_config = {}
         # super(...).__init__ assigns kwargs to instance.
         super(MeteorView, self).__init__(**kwargs)
 
@@ -148,6 +148,8 @@ class MeteorView(View):
             if item['where'] == 'client':
                 if '?' in item['url']:
                     item['url'] = item['url'].split('?', 1)[0]
+                if item['url'].startswith('/'):
+                    item['url'] = item['url'][1:]
                 self.client_map[item['url']] = item
                 self.url_map[item['url']] = (
                     item['path_full'],
@@ -198,7 +200,7 @@ class MeteorView(View):
             request.method, request.path,
             request.META['SERVER_PROTOCOL'],
         )
-        if path == '/meteor_runtime_config.js':
+        if path == 'meteor_runtime_config.js':
             config = {
                 'DDP_DEFAULT_CONNECTION_URL': request.build_absolute_uri('/'),
                 'ROOT_URL': request.build_absolute_uri(
