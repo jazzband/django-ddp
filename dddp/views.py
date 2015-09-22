@@ -1,7 +1,8 @@
 """Django DDP Server views."""
-from __future__ import print_function, absolute_import, unicode_literals
+from __future__ import absolute_import, unicode_literals
 
 import io
+import logging
 import mimetypes
 import os.path
 
@@ -36,6 +37,7 @@ class MeteorView(View):
 
     """Django DDP Meteor server view."""
 
+    logger = logging.getLogger(__name__)
     http_method_names = ['get', 'head']
 
     json_path = None
@@ -190,6 +192,12 @@ class MeteorView(View):
 
     def get(self, request, path):
         """Return HTML (or other related content) for Meteor."""
+        self.logger.debug(
+            '[%s:%s] %s %s %s',
+            request.META['REMOTE_ADDR'], request.META['REMOTE_PORT'],
+            request.method, request.path,
+            request.META['SERVER_PROTOCOL'],
+        )
         if path == '/meteor_runtime_config.js':
             config = {
                 'DDP_DEFAULT_CONNECTION_URL': request.build_absolute_uri('/'),
@@ -217,6 +225,4 @@ class MeteorView(View):
                     content_type=content_type,
                 )
         except KeyError:
-            print(path)
             return HttpResponse(self.html)
-            # raise Http404
