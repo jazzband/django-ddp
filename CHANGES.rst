@@ -4,6 +4,10 @@ Change Log
 0.14.0
 ------
 * Correctly handle serving app content from the root path of a domain.
+* Account security tokens are now calculated for each minute allowing 
+  for finer grained token expiry.
+* DDP_PASSWORD_RESET_DAYS_VALID becomes DDP_PASSWORD_RESET_MINUTES_VALID.
+* DDP_LOGIN_RESUME_DAYS_VALID becomes DDP_LOGIN_RESUME_MINUTES_VALID.
 
 0.13.0
 ------

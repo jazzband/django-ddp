@@ -45,36 +45,36 @@ class HashPurpose(object):
     RESUME_LOGIN = 'resume_login'
 
 
-HASH_DAYS_VALID = {
+HASH_MINUTES_VALID = {
     HashPurpose.PASSWORD_RESET: int(
         getattr(
             # keep possible attack window short to reduce chance of account
             # takeover through later  discovery of password reset email message.
-            settings, 'DDP_PASSWORD_RESET_DAYS_VALID', '1',
+            settings, 'DDP_PASSWORD_RESET_MINUTES_VALID', '1440',  # 24 hours
         )
     ),
     HashPurpose.RESUME_LOGIN: int(
         getattr(
             # balance security and useability by allowing users to resume their
             # logins within a reasonable time, but not forever.
-            settings, 'DDP_LOGIN_RESUME_DAYS_VALID', '10',
+            settings, 'DDP_LOGIN_RESUME_MINUTES_VALID', '240',  # 4 hours
         )
     ),
 }
 
 
-def iter_auth_hashes(user, purpose, days_valid):
+def iter_auth_hashes(user, purpose, minutes_valid):
     """
     Generate auth tokens tied to user and specified purpose.
 
-    The hash expires at midnight on the day of today + days_valid, such that
-    when days_valid=1 you get *at least* 24 hours to use the token.
+    The hash expires at midnight on the minute of now + minutes_valid, such that
+    when minutes_valid=1 you get *at least* 1 minute to use the token.
     """
-    today = timezone.now().date()
-    for day in range(days_valid + 1):
+    now = timezone.now().replace(microsecond=0, second=0)
+    for minute in range(minutes_valid + 1):
         yield hashlib.sha1(
             '%s:%s:%s:%s:%s' % (
-                today - datetime.timedelta(days=day),
+                now - datetime.timedelta(minutes=minute),
                 user.password,
                 purpose,
                 user.pk,
@@ -85,17 +85,17 @@ def iter_auth_hashes(user, purpose, days_valid):
 
 def get_auth_hash(user, purpose):
     """Generate a user hash for a particular purpose."""
-    return iter_auth_hashes(user, purpose, days_valid=1).next()
+    return iter_auth_hashes(user, purpose, minutes_valid=1).next()
 
 
-def calc_expiry_time(days_valid):
+def calc_expiry_time(minutes_valid):
     """Return specific time an auth_hash will expire."""
     return (
-        timezone.now() + datetime.timedelta(days=days_valid + 1)
-    ).replace(hour=0, minute=0, second=0, microsecond=0)
+        timezone.now() + datetime.timedelta(minutes=minutes_valid + 1)
+    ).replace(second=0, microsecond=0)
 
 
-def get_user_token(user, purpose, days_valid):
+def get_user_token(user, purpose, minutes_valid):
     """Return login token info for given user."""
     token = ''.join(
         dumps([
@@ -106,7 +106,7 @@ def get_user_token(user, purpose, days_valid):
     return {
         'id': get_meteor_id(user),
         'token': token,
-        'tokenExpires': calc_expiry_time(days_valid),
+        'tokenExpires': calc_expiry_time(minutes_valid),
     }
 
 
@@ -309,7 +309,7 @@ class Auth(APIMixin):
         raise MeteorError(403, 'Authentication failed.')
 
     @classmethod
-    def validated_user(cls, token, purpose, days_valid):
+    def validated_user(cls, token, purpose, minutes_valid):
         """Resolve and validate auth token, returns user object."""
         try:
             username, auth_hash = loads(token.decode('base64'))
@@ -323,7 +323,7 @@ class Auth(APIMixin):
             user.backend = 'django.contrib.auth.backends.ModelBackend'
         except cls.user_model.DoesNotExist:
             cls.auth_failed(username=username, token=token)
-        if auth_hash not in iter_auth_hashes(user, purpose, days_valid):
+        if auth_hash not in iter_auth_hashes(user, purpose, minutes_valid):
             cls.auth_failed(username=username, token=token)
         return user
 
@@ -415,7 +415,7 @@ class Auth(APIMixin):
         self.do_login(user)
         return get_user_token(
             user=user, purpose=HashPurpose.RESUME_LOGIN,
-            days_valid=HASH_DAYS_VALID[HashPurpose.RESUME_LOGIN],
+            minutes_valid=HASH_MINUTES_VALID[HashPurpose.RESUME_LOGIN],
         )
 
     def do_login(self, user):
@@ -472,7 +472,7 @@ class Auth(APIMixin):
                 self.do_login(user)
                 return get_user_token(
                     user=user, purpose=HashPurpose.RESUME_LOGIN,
-                    days_valid=HASH_DAYS_VALID[HashPurpose.RESUME_LOGIN],
+                    minutes_valid=HASH_MINUTES_VALID[HashPurpose.RESUME_LOGIN],
                 )
 
         # Call to `authenticate` was unable to verify the username and password.
@@ -495,13 +495,13 @@ class Auth(APIMixin):
         # pull the username and auth_hash from the token
         user = self.validated_user(
             params['resume'], purpose=HashPurpose.RESUME_LOGIN,
-            days_valid=HASH_DAYS_VALID[HashPurpose.RESUME_LOGIN],
+            minutes_valid=HASH_MINUTES_VALID[HashPurpose.RESUME_LOGIN],
         )
 
         self.do_login(user)
         return get_user_token(
             user=user, purpose=HashPurpose.RESUME_LOGIN,
-            days_valid=HASH_DAYS_VALID[HashPurpose.RESUME_LOGIN],
+            minutes_valid=HASH_MINUTES_VALID[HashPurpose.RESUME_LOGIN],
         )
 
     @api_endpoint('changePassword')
@@ -538,10 +538,10 @@ class Auth(APIMixin):
         except self.user_model.DoesNotExist:
             self.auth_failed()
 
-        days_valid = HASH_DAYS_VALID[HashPurpose.PASSWORD_RESET]
+        minutes_valid = HASH_MINUTES_VALID[HashPurpose.PASSWORD_RESET]
         token = get_user_token(
             user=user, purpose=HashPurpose.PASSWORD_RESET,
-            days_valid=days_valid,
+            minutes_valid=minutes_valid,
         )
 
         forgot_password.send(
@@ -549,7 +549,7 @@ class Auth(APIMixin):
             user=user,
             token=token,
             request=this.request,
-            expiry_date=calc_expiry_time(days_valid),
+            expiry_date=calc_expiry_time(minutes_valid),
         )
 
     @api_endpoint('resetPassword')
@@ -557,7 +557,7 @@ class Auth(APIMixin):
         """Reset password using a token received in email then logs user in."""
         user = self.validated_user(
             token, purpose=HashPurpose.PASSWORD_RESET,
-            days_valid=HASH_DAYS_VALID[HashPurpose.PASSWORD_RESET],
+            minutes_valid=HASH_MINUTES_VALID[HashPurpose.PASSWORD_RESET],
         )
         user.set_password(new_password)
         user.save()
