@@ -1,6 +1,13 @@
 Change Log
 ==========
 
+0.15.0
+------
+* Renamed `Logs` collection and publication to `dddp.logs` to be consistent with naming conventions used elsewhere.
+* Pass all attributes from `logging.LogRecord` via `dddp.logs` collection.
+* Use select_related() and resultant cached relational fields to speed up Colleciton.serialize() by significantly reducing round-trips to the database.
+* Fix bug in `get_meteor_ids()` which caused many extra database hits.
+
 0.14.0
 ------
 * Correctly handle serving app content from the root path of a domain.
