@@ -1,10 +1,12 @@
 from dddp import THREAD_LOCAL as this
 from dddp.api import API, Publication
+from dddp.logging import LOGS_NAME
 from django.contrib import auth
 
 
 class Logs(Publication):
 
+    name = LOGS_NAME
     users = auth.get_user_model()
 
     def get_queries(self):
