@@ -404,9 +404,11 @@ class Collection(APIMixin):
         for field in meta.local_fields:
             rel = getattr(field, 'rel', None)
             if rel:
+                # use field value which should set by select_related()
                 fields[field.column] = get_meteor_id(
-                    rel.to, fields.pop(field.name),
+                    getattr(obj, field.name),
                 )
+                fields.pop(field.name)
             elif isinstance(field, django.contrib.postgres.fields.ArrayField):
                 fields[field.name] = field.to_python(fields.pop(field.name))
             elif (
@@ -642,7 +644,7 @@ class DDP(APIMixin):
                 meteor_ids = get_meteor_ids(
                     qs.model, qs.values_list('pk', flat=True),
                 )
-            for obj in qs:
+            for obj in qs.select_related():
                 payload = col.obj_change_as_msg(obj, ADDED, meteor_ids)
                 this.send(payload)
         if not silent:
