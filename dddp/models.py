@@ -108,7 +108,7 @@ def get_meteor_ids(model, object_ids):
             object_id__in=list(result)
         ).values_list('object_id', 'meteor_id')
     for obj_pk, meteor_id in query:
-        result[obj_pk] = meteor_id
+        result[str(obj_pk)] = meteor_id
     for obj_pk, meteor_id in result.items():
         if meteor_id is None:
             result[obj_pk] = get_meteor_id(model, obj_pk)
