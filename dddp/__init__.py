@@ -6,7 +6,6 @@ from pkg_resources import get_distribution, DistributionNotFound
 from gevent.local import local
 from dddp import alea
 
-
 try:
     _dist = get_distribution('django-ddp')
     if not __file__.startswith(os.path.join(_dist.location, 'django-ddp', '')):
@@ -42,6 +41,14 @@ def greenify():
 
     # ensure we don't greenify again
     _GREEN[True] = True
+
+    try:
+        # Use psycopg2 by default
+        import psycopg2
+    except ImportError:
+        # Fallback to psycopg2cffi if required (eg: pypy)
+        from psycopg2cffi import compat
+        compat.register()
 
 
 class AlreadyRegistered(Exception):
