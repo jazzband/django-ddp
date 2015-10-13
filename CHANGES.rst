@@ -1,6 +1,15 @@
 Change Log
 ==========
 
+0.17.0
+------
+* Make the SQL for subscriptions much faster for PostgreSQL.
+* Repeatable builds using ye olde make.
+* Use tox test runner - no tests yet (#11).
+* Add concrete requirement files for test suite (#11).
+* Started documentation using Sphinx (#10).
+* Python 3 style exception handling.
+
 0.16.0
 ------
 * New setting: `DDP_API_ENDPOINT_DECORATORS`.
