@@ -145,13 +145,13 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         """Show remote address that connected to us."""
         return self.remote_addr
 
-    def on_close(self, reason):
+    def on_close(self, *args, **kwargs):
         """Handle closing of websocket connection."""
         if self.connection is not None:
             del self.pgworker.connections[self.connection.pk]
             self.connection.delete()
             self.connection = None
-        self.logger.info('- %s %s', self, reason or 'CLOSE')
+        self.logger.info('- %s %s', self, args or 'CLOSE')
 
     def on_message(self, message):
         """Process a message received from remote."""
@@ -176,7 +176,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
                 raw = msgs.pop(0)
                 try:
                     data = ejson.loads(raw)
-                except ValueError, err:
+                except (TypeError, ValueError), err:
                     self.error(400, 'Data is not valid EJSON')
                     continue
                 if not isinstance(data, dict):
@@ -185,9 +185,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
                 try:
                     msg = data.pop('msg')
                 except KeyError:
-                    self.error(
-                        400, 'Bad request', offendingMessage=data,
-                    )
+                    self.error(400, 'Bad request', offendingMessage=data)
                     continue
                 # dispatch message
                 try:
@@ -199,8 +197,6 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
                     self.error(err)
         except geventwebsocket.WebSocketError, err:
             self.ws.close()
-        except MeteorError, err:
-            self.error(err)
 
     @transaction.atomic
     def dispatch(self, msg, kwargs):
@@ -284,7 +280,10 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         kwargs['msg'] = msg
         self.send(kwargs)
 
-    def error(self, err, reason=None, detail=None, msg='error', **kwargs):
+    def error(
+            self, err, reason=None, detail=None, msg='error', exc_info=1,
+            **kwargs
+    ):
         """Send EJSON error to remote."""
         if isinstance(err, MeteorError):
             (
@@ -308,29 +307,25 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         if kwargs:
             data.update(kwargs)
         record = {
-            'exc_info': sys.exc_info(),
             'extra': {
                 'request': this.request,
             },
         }
-        if record['exc_info'] == (None, None, None):
-            del record['exc_info']
-        self.logger.error('! %s %r', self, data, **record)
+        self.logger.error('! %s %r', self, data, exc_info=exc_info, **record)
         self.reply(msg, **data)
 
     def recv_connect(self, version=None, support=None, session=None):
         """DDP connect handler."""
+        del session  # Meteor doesn't even use this!
         if self.connection is not None:
             self.error(
-                400,
-                'Session already established.',
-                reason='Current session in detail.',
+                400, 'Session already established.',
                 detail=self.connection.connection_id,
             )
         elif None in (version, support) or version not in self.versions:
             self.reply('failed', version=self.versions[0])
         elif version not in support:
-            self.error('Client version/support mismatch.')
+            self.error(400, 'Client version/support mismatch.')
         else:
             from dddp.models import Connection
             cur = connection.cursor()
