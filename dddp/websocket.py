@@ -115,6 +115,12 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
 
     def on_open(self):
         """Handle new websocket connection."""
+        this.request = WSGIRequest(self.ws.environ)
+        this.ws = self
+        this.send = self.send
+        this.reply = self.reply
+        this.error = self.error
+
         self.logger = self.ws.logger
         self.remote_ids = collections.defaultdict(set)
 
@@ -325,12 +331,6 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         elif version not in support:
             self.error('Client version/support mismatch.')
         else:
-            this.request = WSGIRequest(self.ws.environ)
-            this.ws = self
-            this.send = self.send
-            this.reply = self.reply
-            this.error = self.error
-
             from dddp.models import Connection
             cur = connection.cursor()
             cur.execute('SELECT pg_backend_pid()')
