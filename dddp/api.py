@@ -762,7 +762,7 @@ class DDP(APIMixin):
             if result is not None:
                 msg['result'] = result
             this.send(msg)
-        except Exception, err:  # log error+stack trace -> pylint: disable=W0703
+        except Exception as err:  # log err+stack trace -> pylint: disable=W0703
             details = traceback.format_exc()
             print(id_, method, params_repr)
             print(details)

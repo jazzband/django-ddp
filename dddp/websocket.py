@@ -163,7 +163,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             # parse message set
             try:
                 msgs = ejson.loads(message)
-            except ValueError, err:
+            except ValueError as err:
                 self.error(400, 'Data is not valid EJSON')
                 return
             if not isinstance(msgs, list):
@@ -176,7 +176,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
                 raw = msgs.pop(0)
                 try:
                     data = ejson.loads(raw)
-                except (TypeError, ValueError), err:
+                except (TypeError, ValueError) as err:
                     self.error(400, 'Data is not valid EJSON')
                     continue
                 if not isinstance(data, dict):
@@ -190,12 +190,12 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
                 # dispatch message
                 try:
                     self.dispatch(msg, data)
-                except MeteorError, err:
+                except MeteorError as err:
                     self.error(err)
-                except Exception, err:
+                except Exception as err:
                     traceback.print_exc()
                     self.error(err)
-        except geventwebsocket.WebSocketError, err:
+        except geventwebsocket.WebSocketError as err:
             self.ws.close()
 
     @transaction.atomic
@@ -220,7 +220,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         # dispatch to handler
         try:
             handler(**kwargs)
-        except Exception, err:  # print stack trace --> pylint: disable=W0703
+        except Exception as err:  # print stack trace --> pylint: disable=W0703
             traceback.print_exc()
             self.error(500, 'Internal server error', err)
 
