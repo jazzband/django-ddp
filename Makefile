@@ -2,7 +2,7 @@ NAME := $(shell python setup.py --name)
 VERSION := $(shell python setup.py --version)
 
 SDIST := dist/${NAME}-${VERSION}.tar.gz
-WHEEL := dist/${NAME}-${VERSION}-py2.py3-none-any.whl
+WHEEL := dist/$(subst -,_,${NAME})-${VERSION}-py2.py3-none-any.whl
 
 .PHONY: all test clean clean-docs upload-docs upload-pypi dist docs
 
