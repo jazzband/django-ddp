@@ -279,8 +279,25 @@ class Collection(APIMixin):
             if isinstance(user_rels, basestring):
                 user_rels = [user_rels]
             user_filter = None
+            # Django supports model._meta -> pylint: disable=W0212
+            meta = self.model._meta
             for user_rel in user_rels:
-                filter_obj = Q(**{user_rel: user})
+                name, rel = (user_rel.split('__', 1) + [None])[:2]
+                field = meta.pk if name == 'pk' else meta.get_field(name)
+                # generate `filter_obj` (instance of django.db.models.Q)
+                if field not in meta.local_fields:
+                    # user_rel spans a join - ensure efficient SQL is generated
+                    # such as `...WHERE foo_id IN (SELECT foo.id FROM ...)`
+                    # rather than creating an explosion of INNER JOINS.
+                    filter_obj = Q(**{
+                        '%s__in' % name: field.related_model.objects.filter(
+                            **{rel or 'pk': user}
+                        ).values('pk'),
+                    })
+                else:
+                    # user rel is a local field -> no joins to avoid.
+                    filter_obj = Q(**{str(user_rel): user})
+                # merge `filter_obj` into `user_filter`
                 if user_filter is None:
                     user_filter = filter_obj
                 else:
@@ -745,7 +762,7 @@ class DDP(APIMixin):
             if result is not None:
                 msg['result'] = result
             this.send(msg)
-        except Exception, err:  # log error+stack trace -> pylint: disable=W0703
+        except Exception as err:  # log err+stack trace -> pylint: disable=W0703
             details = traceback.format_exc()
             print(id_, method, params_repr)
             print(details)
