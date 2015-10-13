@@ -1,6 +1,23 @@
 Change Log
 ==========
 
+0.16.0
+------
+* New setting: `DDP_API_ENDPOINT_DECORATORS`.
+    This setting takes a list of dotted import paths to decorators which are applied to API endpoints.  For example, enable New Relic instrumentation by adding the line below to your Django `settings.py`:
+
+  .. code:: python
+
+    DDP_API_ENDPOINT_DECORATORS = ['newrelic.agent.background_task']
+      
+* Fixed #7 -- Warn if using DB engines other than psycopg2 - thanks @Matvey-Kuk.
+* Improvements to error/exception handling.
+* Warn if many TX chunks are queued in case WebSocket has stalled.
+* Bugfix thread locals setup when opening WebSocket.
+* Add missing import for print function (Python 2).
+* Work towards #16 -- Use `psycopg2cffi` compatibility if `psycopg2` not 
+  installed.
+
 0.15.0
 ------
 * Renamed `Logs` collection and publication to `dddp.logs` to be consistent with naming conventions used elsewhere.

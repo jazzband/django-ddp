@@ -21,6 +21,7 @@ except ImportError:
     from django.db.models import Expression as ExpressionNode
 from django.db.models.sql import aggregates as sql_aggregates
 from django.utils.encoding import force_text
+from django.utils.module_loading import import_string
 from django.db import DatabaseError
 from django.db.models import signals
 import ejson
@@ -33,6 +34,12 @@ from dddp.models import (
     AleaIdField, Connection, Subscription, get_meteor_id, get_meteor_ids,
 )
 
+
+API_ENDPOINT_DECORATORS = [
+    import_string(dotted_path)
+    for dotted_path
+    in getattr(settings, 'DDP_API_ENDPOINT_DECORATORS', [])
+]
 
 XMIN = {'select': {'xmin': "'xmin'"}}
 
@@ -88,16 +95,54 @@ class Array(aggregates.Aggregate):
         return value
 
 
-def api_endpoint(path_or_func):
-    """Decorator to mark a method as an API endpoint for later registration."""
+def api_endpoint(path_or_func=None, decorate=True):
+    """
+    Decorator to mark a method as an API endpoint for later registration.
+
+    Args:
+        path_or_func: either the function to be decorated or its API path.
+        decorate (bool): Apply API_ENDPOINT_DECORATORS if True (default).
+
+    Returns:
+        Callable: Decorated function (with optionally applied decorators).
+
+    Examples:
+
+        >>> class Counter(APIMixin):
+        ...     value = 0
+        ...
+        ...     # default API path matches function name 'increment'.
+        ...     @api_endpoint
+        ...     def increment(self, amount):
+        ...         '''Increment counter value by `amount`.'''
+        ...         self.value += amount
+        ...         return self.value
+        ...
+        ...     # excplicitly set API path to 'Decrement'.
+        ...     @api_endpoint('Decrement')
+        ...     def decrement(self, amount):
+        ...         '''Decrement counter value by `amount`.'''
+        ...         self.value -= amount
+        ...         return self.value
+
+    """
+    def maybe_decorated(func):
+        """Apply API_ENDPOINT_DECORATORS to func."""
+        if decorate:
+            for decorator in API_ENDPOINT_DECORATORS:
+                func = decorator()(func)
+        return func
     if callable(path_or_func):
         path_or_func.api_path = path_or_func.__name__
-        return path_or_func
+        return maybe_decorated(path_or_func)
     else:
         def _api_endpoint(func):
             """Decorator inner."""
-            func.api_path = path_or_func
-            return func
+            if path_or_func is None:
+                func.api_path = func.__name__
+            else:
+                func.api_path = path_or_func
+            return maybe_decorated(func)
         return _api_endpoint
 
 
@@ -675,7 +720,7 @@ class DDP(APIMixin):
         if not silent:
             this.send({'msg': 'nosub', 'id': id_})
 
-    @api_endpoint
+    @api_endpoint(decorate=False)
     def method(self, method, params, id_):
         """Invoke a method."""
         try:

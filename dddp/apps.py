@@ -1,6 +1,5 @@
 """Django DDP app config."""
-
-from __future__ import print_function
+import warnings
 
 from django.apps import AppConfig
 from django.conf import settings, ImproperlyConfigured
@@ -15,18 +14,19 @@ class DjangoDDPConfig(AppConfig):
     api = None
     name = 'dddp'
     verbose_name = 'Django DDP'
-    _in_migration = False
 
     def ready(self):
         """Initialisation for django-ddp (setup lookups and signal handlers)."""
         if not settings.DATABASES:
             raise ImproperlyConfigured('No databases configured.')
         for (alias, conf) in settings.DATABASES.items():
-            if conf['ENGINE'] != 'django.db.backends.postgresql_psycopg2':
-                raise ImproperlyConfigured(
-                    '%r uses %r: django-ddp only works with PostgreSQL.' % (
-                        alias, conf['backend'],
-                    )
+            engine = conf['ENGINE']
+            if engine != 'django.db.backends.postgresql_psycopg2':
+                warnings.warn(
+                    'Database %r uses unsupported %r engine.' % (
+                        alias, engine,
+                    ),
+                    UserWarning,
                 )
         self.api = autodiscover()
         self.api.ready()
