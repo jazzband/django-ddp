@@ -1,0 +1,4 @@
+Django==1.8.5
+gevent==1.0.2
+gevent-websocket==0.9.5
+psycopg2==2.6.1
