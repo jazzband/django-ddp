@@ -1,6 +1,10 @@
 Change Log
 ==========
 
+0.17.1
+------
+* Fix minor issue where some subscription queries still used slow queries.
+
 0.17.0
 ------
 * Make the SQL for subscriptions much faster for PostgreSQL.
