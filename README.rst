@@ -1,4 +1,4 @@
-django-ddp
+Django DDP
 ==========
 
 Django_/PostgreSQL_ implementation of the Meteor DDP service, allowing Meteor_ to subscribe to changes on Django_ models.  Released under the MIT license.
@@ -232,8 +232,12 @@ Contributors
 `Muhammed Thanish <https://github.com/mnmtanish>`_
     * Making the `DDP Test Suite <https://github.com/meteorhacks/ddptest>`_ available.
 
+This project is forever grateful for the love, support and respect given 
+by the awesome team at `Common Code`_.
+
 .. _Django: https://www.djangoproject.com/
 .. _Django signals: https://docs.djangoproject.com/en/stable/topics/signals/
+.. _Common Code: https://commoncode.com.au/
 .. _PostgreSQL: http://postgresql.org/
 .. _psycopg2: http://initd.org/psycopg/
 .. _WebSockets: http://www.w3.org/TR/websockets/
