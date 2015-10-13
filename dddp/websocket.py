@@ -233,11 +233,6 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         # buffer data until we get pre-requisite data
         if tx_id is None:
             tx_id = self.get_tx_id()
-        if self._tx_buffer:
-            self.logger.debug(
-                'TX received %d, waiting for %d, have %r.',
-                tx_id, self._tx_next_id, self._tx_buffer,
-            )
         self._tx_buffer[tx_id] = data
 
         # de-queue messages from buffer
@@ -277,6 +272,12 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             except geventwebsocket.WebSocketError:
                 self.ws.close()
                 break
+        num_waiting = len(self._tx_buffer)
+        if num_waiting > 10:
+            self.logger.warn(
+                'TX received %d, waiting for %d, have %d waiting: %r.',
+                tx_id, self._tx_next_id, num_waiting, self._tx_buffer,
+            )
 
     def reply(self, msg, **kwargs):
         """Send EJSON reply to remote."""
