@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Django/PostgreSQL implementation of the Meteor DDP service."""
+import platform
 from setuptools import setup, find_packages
 
 CLASSIFIERS = [
@@ -42,6 +43,18 @@ CLASSIFIERS = [
     "Framework :: Django :: 1.8",
 ]
 
+# Ensure correct dependencies between different python implementations.
+IMPLEMENTATION_INSTALL_REQUIRES = {
+    # extra requirements for CPython implementation
+    'CPython': [
+        'psycopg2>=2.5.4',
+    ],
+    # extra requirements for all other Python implementations
+    None: [
+        'psycopg2cffi>=2.7.2',
+    ],
+}
+
 setup(
     name='django-ddp',
     version='0.17.1',
@@ -55,14 +68,16 @@ setup(
     include_package_data=True,
     install_requires=[
         'Django>=1.7',
-        'psycopg2>=2.5.4',
         'gevent>=1.0',
         'gevent-websocket>=0.9,!=0.9.4',
         'meteor-ejson>=1.0',
         'psycogreen>=1.0',
         'django-dbarray>=0.2',
         'pybars3>=0.9.1',
-    ],
+    ] + IMPLEMENTATION_INSTALL_REQUIRES.get(
+        platform.python_implementation(),
+        IMPLEMENTATION_INSTALL_REQUIRES[None],  # default to non-CPython reqs
+    ),
     entry_points={
         'console_scripts': [
             'dddp=dddp.main:main',
