@@ -44,7 +44,7 @@ CLASSIFIERS = [
 
 setup(
     name='django-ddp',
-    version='0.17.1',
+    version='0.17.2',
     description=__doc__,
     long_description=open('README.rst').read(),
     author='Tyson Clugg',
@@ -62,6 +62,7 @@ setup(
         'psycogreen>=1.0',
         'django-dbarray>=0.2',
         'pybars3>=0.9.1',
+        'six>=1.10.0',
     ],
     entry_points={
         'console_scripts': [

@@ -18,12 +18,21 @@ Peer servers subscribe to aggregate broadcast events which are de-multiplexed an
 
 Limitations
 -----------
-* No support for the SockJS protocol to support browsers that
-  don't have WebSockets_ (see http://caniuse.com/websockets for
-  supported browsers).
+* No support for the SockJS XHR fallback protocol to support browsers
+  that don't have WebSockets_ (see http://caniuse.com/websockets for
+  supported browsers).  It is noteworthy that the only current browser
+  listed that doesn't support WebSockets_ is Opera Mini, which doesn't
+  support pages that use EcmaScript (JavaScript) for interactivity
+  anyway.  Offering SockJS XHR fallback wouldn't help to substantially
+  increase browser support: if Opera Mini is excluded then all current
+  browser versions including IE, Edge, Firefox, Chrome, Safari, Opera,
+  iOS Safari, Android Browser Android and Chrome for Android are
+  supported.  Having said all that, pull requests are welcome.
 
 * Changes must be made via the Django ORM as django-ddp uses `Django
-  signals`_ to receive model save/update signals.
+  signals`_ to receive model save/update signals.  There are no
+  technical reasons why database triggers couldn't be used - pull
+  requests are welcome.
 
 
 Installation
