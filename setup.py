@@ -62,6 +62,7 @@ setup(
         'psycogreen>=1.0',
         'django-dbarray>=0.2',
         'pybars3>=0.9.1',
+        'six>=1.10.0',
     ],
     entry_points={
         'console_scripts': [

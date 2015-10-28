@@ -2,19 +2,10 @@
 from __future__ import unicode_literals
 import os.path
 import sys
-from pkg_resources import get_distribution, DistributionNotFound
 from gevent.local import local
 from dddp import alea
 
-try:
-    _dist = get_distribution('django-ddp')
-    if not __file__.startswith(os.path.join(_dist.location, 'django-ddp', '')):
-        # not installed, but there is another version that *is*
-        raise DistributionNotFound
-except DistributionNotFound:
-    __version__ = 'development'
-else:
-    __version__ = _dist.version
+__version__ = '0.17.1'
 
 default_app_config = 'dddp.apps.DjangoDDPConfig'
 
@@ -80,7 +71,7 @@ class ThreadLocal(local):
     def get(self, name, factory, *factory_args, **factory_kwargs):
         """Get attribute, creating if required using specified factory."""
         update_thread_local = getattr(factory, 'update_thread_local', True)
-        if (not update_thread_local) or (not hasattr(self, name)):
+        if (not update_thread_local) or (name not in self.__dict__):
             obj = factory(*factory_args, **factory_kwargs)
             if update_thread_local:
                 setattr(self, name, obj)
