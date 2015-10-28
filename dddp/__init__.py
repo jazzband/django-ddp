@@ -27,9 +27,10 @@ _GREEN = {}
 
 def greenify():
     """Patch threading and psycopg2 modules for green threads."""
-    # no need to greenify twice.
+    # don't greenify twice.
     if _GREEN:
         return
+    _GREEN[True] = True
 
     from gevent.monkey import patch_all, saved
     if ('threading' in sys.modules) and ('threading' not in saved):
@@ -39,12 +40,10 @@ def greenify():
     from psycogreen.gevent import patch_psycopg
     patch_psycopg()
 
-    # ensure we don't greenify again
-    _GREEN[True] = True
-
     try:
         # Use psycopg2 by default
         import psycopg2
+        del psycopg2
     except ImportError:
         # Fallback to psycopg2cffi if required (eg: pypy)
         from psycopg2cffi import compat
@@ -88,21 +87,33 @@ class ThreadLocal(local):
             return obj
         return getattr(self, name)
 
+    @staticmethod
+    def get_factory(name):
+        """Get factory for given name."""
+        return THREAD_LOCAL_FACTORIES[name]
+
 
 class RandomStreams(object):
 
+    """Namespaced PRNG generator."""
+
     def __init__(self):
+        """Initialize with random PRNG state."""
         self._streams = {}
         self._seed = THREAD_LOCAL.alea_random.hex_string(20)
 
     def get_seed(self):
+        """Retrieve current PRNG seed."""
         return self._seed
+
     def set_seed(self, val):
+        """Set current PRNG seed."""
         self._streams = {}
         self._seed = val
     random_seed = property(get_seed, set_seed)
 
     def __getitem__(self, key):
+        """Get namespaced PRNG stream."""
         if key not in self._streams:
             return self._streams.setdefault(key, alea.Alea(self._seed, key))
         return self._streams[key]
@@ -124,6 +135,7 @@ METEOR_ID_CHARS = u'23456789ABCDEFGHJKLMNPQRSTWXYZabcdefghijkmnopqrstuvwxyz'
 
 
 def meteor_random_id(name=None, length=17):
+    """Generate a new ID, optionally using namespace of given `name`."""
     if name is None:
         stream = THREAD_LOCAL.alea_random
     else:
@@ -132,6 +144,7 @@ def meteor_random_id(name=None, length=17):
 
 
 def autodiscover():
+    """Import all `ddp` submodules from `settings.INSTALLED_APPS`."""
     from django.utils.module_loading import autodiscover_modules
     from dddp.api import API
     autodiscover_modules('ddp', register_to=API)
