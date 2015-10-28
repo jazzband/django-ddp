@@ -26,28 +26,30 @@ This implementation of Alea defaults to a more secure initial internal state.
 
 >>> random = Alea("my", 3, "seeds")
 
->>> random.random_string(17, UNMISTAKABLE)
-'JYRduBwQtjpeCkqP7'
+>>> random.random_string(17, UNMISTAKABLE) == 'JYRduBwQtjpeCkqP7'
+True
 
->>> random.random_string(17, UNMISTAKABLE)
-'HLxYtpZBtSain84zj'
+>>> random.random_string(17, UNMISTAKABLE) == 'HLxYtpZBtSain84zj'
+True
 
->>> random.random_string(17, UNMISTAKABLE)
-'s9XrbWaDC4yCL5NCW'
+>>> random.random_string(17, UNMISTAKABLE) == 's9XrbWaDC4yCL5NCW'
+True
 
->>> random.random_string(17, UNMISTAKABLE)
-'SCiymgNnZpwda9vSH'
+>>> random.random_string(17, UNMISTAKABLE) == 'SCiymgNnZpwda9vSH'
+True
 
->>> random.random_string(17, UNMISTAKABLE)
-'hui3ThSoZrFrdFDTT'
+>>> random.random_string(17, UNMISTAKABLE) == 'hui3ThSoZrFrdFDTT'
+True
 
 
 >>> random = Alea("my", 3, "seeds")
 
->>> random.random_string(43, BASE64)
-'tHBM5k8z4TZOmU0zgsv9H4ZIl4CJSXic_T3iF2KFJnm'
+>>> random.random_string(43, BASE64) == \
+    'tHBM5k8z4TZOmU0zgsv9H4ZIl4CJSXic_T3iF2KFJnm'
+True
 
 """
+from __future__ import unicode_literals
 
 from math import floor
 import os
@@ -78,8 +80,8 @@ class Mash(object):
 
     def __call__(self, data):
         """Return mash, updating internal state."""
-        data = bytes(data)
-        for byte in bytes(data):
+        data = str(data)
+        for byte in data:
             self.n += ord(byte)
             h = 0.02519603282416938 * self.n
             self.n = floor(h)
@@ -112,7 +114,7 @@ class Alea(object):
             # a much more secure seed by default to avoid hash collisions.
             seed_ids = [int, str, random, self, values, self.__class__]
             random.shuffle(seed_ids)
-            values = map(id, seed_ids) + [time.time(), os.urandom(512)]
+            values = list(map(id, seed_ids)) + [time.time(), os.urandom(512)]
 
         mash = Mash()
         self.c = 1
