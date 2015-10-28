@@ -1,6 +1,10 @@
 Change Log
 ==========
 
+0.17.2
+------
+* Python 3 fixes using `six` compatibility library (#16, #17).
+
 0.17.1
 ------
 * Fix minor issue where some subscription queries still used slow queries.
