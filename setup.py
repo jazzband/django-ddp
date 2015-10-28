@@ -44,7 +44,7 @@ CLASSIFIERS = [
 
 setup(
     name='django-ddp',
-    version='0.17.1',
+    version='0.17.2',
     description=__doc__,
     long_description=open('README.rst').read(),
     author='Tyson Clugg',
