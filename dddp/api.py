@@ -599,10 +599,22 @@ class DDP(APIMixin):
         """Return objects that are only visible through given subscription."""
         if params is None:
             params = ejson.loads(obj.params_ejson)
+        # shortcut if an equivalent subscription exists for this connection.
+        is_dupe = Subscription.objects.extra(**XMIN).filter(
+            connection=obj.connection_id,  # same connection
+            publication=obj.publication,  # same publication
+            params_ejson=obj.params_ejson,  # same params
+            user=obj.user_id,  # same user
+        ).extra(
+            where=["'xmin' <= %s"],
+            params=[obj.xmin], # only the *earliest* subscription counts
+        ).exclude(
+            pk=obj.pk,
+        ).exists()
         if pub is None:
             pub = self.get_pub_by_name(obj.publication)
         queries = collections.OrderedDict(
-            (col, qs) for (qs, col) in (
+            (col, qs.none() if is_dupe else qs) for (qs, col) in (
                 self.qs_and_collection(qs)
                 for qs
                 in pub.get_queries(*params)
@@ -613,7 +625,7 @@ class DDP(APIMixin):
         to_send = collections.OrderedDict(
             (
                 col,
-                col.objects_for_user(
+                qs.none() if is_dupe else col.objects_for_user(
                     user=obj.user_id,
                     qs=qs,
                     *args, **kwargs
@@ -621,25 +633,27 @@ class DDP(APIMixin):
             )
             for col, qs
             in queries.items()
+            if not is_dupe
         )
-        for other in Subscription.objects.filter(
-                connection=obj.connection_id,
-                collections__collection_name__in=[col.name for col in queries],
-        ).exclude(
-            pk=obj.pk,
-        ).order_by('pk').distinct():
-            other_pub = self.get_pub_by_name(other.publication)
-            for qs in other_pub.get_queries(*other.params):
-                qs, col = self.qs_and_collection(qs)
-                if col not in to_send:
-                    continue
-                to_send[col] = to_send[col].exclude(
-                    pk__in=col.objects_for_user(
-                        user=other.user_id,
-                        qs=qs,
-                        *args, **kwargs
-                    ).values('pk'),
-                )
+        if not is_dupe:
+            for other in Subscription.objects.filter(
+                    connection=obj.connection_id,
+                    collections__collection_name__in=[col.name for col in queries],
+            ).exclude(
+                pk=obj.pk,
+            ).order_by('pk').distinct():
+                other_pub = self.get_pub_by_name(other.publication)
+                for qs in other_pub.get_queries(*other.params):
+                    qs, col = self.qs_and_collection(qs)
+                    if col not in to_send:
+                        continue
+                    to_send[col] = to_send[col].exclude(
+                        pk__in=col.objects_for_user(
+                            user=other.user_id,
+                            qs=qs,
+                            *args, **kwargs
+                        ).values('pk'),
+                    )
         for col, qs in to_send.items():
             yield col, qs.distinct()
 
@@ -719,7 +733,7 @@ class DDP(APIMixin):
 
     def do_unsub(self, id_, silent):
         """Unsubscribe the current thread from the specified subscription id."""
-        sub = Subscription.objects.get(
+        sub = Subscription.objects.extra(**XMIN).get(
             connection=this.ws.connection, sub_id=id_,
         )
         for col, qs in self.sub_unique_objects(sub):

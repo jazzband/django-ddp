@@ -25,7 +25,7 @@ from dddp import (
     meteor_random_id,
 )
 from dddp.models import get_meteor_id, get_object, Subscription
-from dddp.api import API, APIMixin, api_endpoint, Collection, Publication
+from dddp.api import API, APIMixin, api_endpoint, Collection, Publication, XMIN
 from dddp.websocket import MeteorError
 
 
@@ -254,7 +254,9 @@ class Auth(APIMixin):
     @staticmethod
     def update_subs(new_user_id):
         """Update subs to send added/removed for collections with user_rel."""
-        for sub in Subscription.objects.filter(connection=this.ws.connection):
+        for sub in Subscription.objects.filter(
+            connection=this.ws.connection,
+        ).extra(**XMIN):
             params = loads(sub.params_ejson)
             pub = API.get_pub_by_name(sub.publication)
 
