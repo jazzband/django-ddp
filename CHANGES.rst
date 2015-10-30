@@ -1,6 +1,18 @@
 Change Log
 ==========
 
+0.17.3
+------
+* Depend on gevent>=1.1b6 if running anything other than CPython 2.7, 
+  otherwise allow gevent 1.0 (current stable).
+* Preliminary (but broken) support for PyPy/Jython/IronPython though 
+  platform specific install_requires on psycopg2cffi instead of psycopg2 
+  for all platforms except CPython 2/3.
+
+0.17.2
+------
+* Python 3 fixes using `six` compatibility library (#16, #17).
+
 0.17.1
 ------
 * Fix minor issue where some subscription queries still used slow queries.

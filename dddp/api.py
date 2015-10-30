@@ -25,6 +25,7 @@ from django.utils.module_loading import import_string
 from django.db import DatabaseError
 from django.db.models import signals
 import ejson
+import six
 
 # django-ddp
 from dddp import (
@@ -69,11 +70,10 @@ class Array(aggregates.Aggregate):
 
     def add_to_query(self, query, alias, col, source, is_summary):
         """Override source field internal type so the raw array is returned."""
+        @six.add_metaclass(dbarray.ArrayFieldMetaclass)
         class ArrayField(dbarray.ArrayFieldBase, source.__class__):
 
             """ArrayField for override."""
-
-            __metaclass__ = dbarray.ArrayFieldMetaclass
 
             @staticmethod
             def get_internal_type():
@@ -203,7 +203,9 @@ class APIMixin(object):
         """Clear out cache for api_path_map."""
         self._api_path_cache = None
         for api_provider in self.api_providers:
-            if api_provider.clear_api_path_map_cache.im_self is not None:
+            if six.get_method_self(
+                api_provider.clear_api_path_map_cache,
+            ) is not None:
                 api_provider.clear_api_path_map_cache()
 
     def api_endpoint(self, api_path):
@@ -241,11 +243,10 @@ class CollectionMeta(APIMeta):
         return super(CollectionMeta, mcs).__new__(mcs, name, bases, attrs)
 
 
+@six.add_metaclass(CollectionMeta)
 class Collection(APIMixin):
 
     """DDP Model Collection."""
-
-    __metaclass__ = CollectionMeta
 
     name = None
     model = None
@@ -522,11 +523,10 @@ class PublicationMeta(APIMeta):
         return super(PublicationMeta, mcs).__new__(mcs, name, bases, attrs)
 
 
+@six.add_metaclass(PublicationMeta)
 class Publication(APIMixin):
 
     """DDP Publication (a set of queries)."""
-
-    __metaclass__ = PublicationMeta
 
     name = None
     queries = None
@@ -553,11 +553,10 @@ class Publication(APIMixin):
         )
 
 
+@six.add_metaclass(APIMeta)
 class DDP(APIMixin):
 
     """Django DDP API."""
-
-    __metaclass__ = APIMeta
 
     pgworker = None
     _in_migration = False
