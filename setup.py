@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Django/PostgreSQL implementation of the Meteor DDP service."""
 import platform
+import sys
 from setuptools import setup, find_packages
 
 CLASSIFIERS = [
@@ -48,10 +49,12 @@ IMPLEMENTATION_INSTALL_REQUIRES = {
     # extra requirements for CPython implementation
     'CPython': [
         'psycopg2>=2.5.4',
+        'gevent>=1.1b6' if sys.version_info >= (3, 0) else 'gevent>=1.0',
     ],
     # extra requirements for all other Python implementations
     None: [
         'psycopg2cffi>=2.7.2',
+        'gevent>=1.1b6',
     ],
 }
 
@@ -68,7 +71,6 @@ setup(
     include_package_data=True,
     install_requires=[
         'Django>=1.7',
-        'gevent>=1.0',
         'gevent-websocket>=0.9,!=0.9.4',
         'meteor-ejson>=1.0',
         'psycogreen>=1.0',
