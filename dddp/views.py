@@ -1,6 +1,7 @@
 """Django DDP Server views."""
 from __future__ import absolute_import, unicode_literals
 
+from copy import deepcopy
 import io
 import logging
 import mimetypes
@@ -12,6 +13,22 @@ from django.http import HttpResponse
 from django.views.generic import View
 
 import pybars
+
+
+# from https://www.xormedia.com/recursively-merge-dictionaries-in-python/
+def dict_merge(a, b):
+    '''recursively merges dict's. not just simple a['key'] = b['key'], if
+    both a and bhave a key who's value is a dict then dict_merge is called
+    on both values and the result stored in the returned dictionary.'''
+    if not isinstance(b, dict):
+        return b
+    result = deepcopy(a)
+    for k, v in b.iteritems():
+        if k in result and isinstance(result[k], dict):
+                result[k] = dict_merge(result[k], v)
+        else:
+            result[k] = deepcopy(v)
+    return result
 
 
 def read(path, default=None, encoding='utf8'):
@@ -56,12 +73,52 @@ class MeteorView(View):
     client_map = None  # web.browser (client) URL to path map
     html = '<!DOCTYPE html>\n<html><head><title>DDP App</title></head></html>'
 
+    meteor_settings = None
+    meteor_public_envs = None
     root_url_path_prefix = ''
     bundled_js_css_prefix = '/'
 
     def __init__(self, **kwargs):
-        """Initialisation for Django DDP server view."""
+        """
+        Initialisation for Django DDP server view.
+
+        `Meteor.settings` is sourced from the following (later take precedence):
+          1. django.conf.settings.METEOR_SETTINGS
+          2. os.environ['METEOR_SETTINGS']
+          3. MeteorView.meteor_settings (class attribute) or empty dict
+          4. MeteorView.as_view(meteor_settings=...)
+
+        Additionally, `Meteor.settings.public` is updated with values from
+        environemnt variables specified from the following sources:
+          1. django.conf.settings.METEOR_PUBLIC_ENVS
+          2. os.environ['METEOR_PUBLIC_ENVS']
+          3. MeteorView.meteor_public_envs (class attribute) or empty dict
+          4. MeteorView.as_view(meteor_public_envs=...)
+        """
         self.runtime_config = {}
+        self.meteor_settings = reduce(
+            dict_merge,
+            [
+                getattr(settings, 'METEOR_SETTINGS', {}),
+                loads(os.environ.get('METEOR_SETTINGS', '{}')),
+                self.meteor_settings or {},
+                kwargs.pop('meteor_settings', {}),
+            ],
+            {},
+        )
+        self.meteor_public_envs = set()
+        self.meteor_public_envs.update(
+            getattr(settings, 'METEOR_PUBLIC_ENVS', []),
+            os.environ.get('METEOR_PUBLIC_ENVS', '').replace(',', ' ').split(),
+            self.meteor_public_envs or [],
+            kwargs.pop('meteor_public_envs', []),
+        )
+        public = self.meteor_settings.setdefault('public', {})
+        for env_name in self.meteor_public_envs:
+            try:
+                public[env_name] = os.environ[env_name]
+            except KeyError:
+                pass  # environment variable not set
         # super(...).__init__ assigns kwargs to instance.
         super(MeteorView, self).__init__(**kwargs)
 
@@ -203,6 +260,7 @@ class MeteorView(View):
         if path == 'meteor_runtime_config.js':
             config = {
                 'DDP_DEFAULT_CONNECTION_URL': request.build_absolute_uri('/'),
+                'PUBLIC_SETTINGS': self.meteor_settings.get('public', {}),
                 'ROOT_URL': request.build_absolute_uri(
                     '%s/' % self.runtime_config.get('ROOT_URL_PATH_PREFIX', ''),
                 ),
