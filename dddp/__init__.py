@@ -5,7 +5,7 @@ import sys
 from gevent.local import local
 from dddp import alea
 
-__version__ = '0.18.0'
+__version__ = '0.18.1'
 
 default_app_config = 'dddp.apps.DjangoDDPConfig'
 

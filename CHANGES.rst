@@ -1,6 +1,10 @@
 Change Log
 ==========
 
+0.18.1
+------
+* Don't assume Django projects include a `wsgi.py`.
+
 0.18.0
 ------
 * Python implementaiton specific builds using tox so that Python2 and 
