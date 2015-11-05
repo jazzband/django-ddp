@@ -109,10 +109,14 @@ class DDPLauncher(object):
 
         # use settings.WSGI_APPLICATION or fallback to default Django WSGI app
         from django.conf import settings
+        self.wsgi_app = None
         if hasattr(settings, 'WSGI_APPLICATION'):
             self.wsgi_name = settings.WSGI_APPLICATION
-            self.wsgi_app = import_string(self.wsgi_name)
-        else:
+            try:
+                self.wsgi_app = import_string(self.wsgi_name)
+            except ImportError:
+                pass
+        if self.wsgi_app is None:
             from django.core.wsgi import get_wsgi_application
             self.wsgi_app = get_wsgi_application()
             self.wsgi_name = str(self.wsgi_app.__class__)
