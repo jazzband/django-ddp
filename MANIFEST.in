@@ -2,8 +2,11 @@ include LICENSE
 include *.rst
 include *.sh
 include *.txt
+include .gitignore
+include .coveragerc
 include Makefile
-recursive-include docs *.bat
-recursive-include docs *.py
-recursive-include docs *.rst
-recursive-include docs Makefile
+graft docs
+prune docs/_build
+include tox.ini
+graft dddp/test/meteor_todos
+prune dddp/test/meteor_todos/.meteor

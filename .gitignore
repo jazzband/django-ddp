@@ -18,3 +18,5 @@ tests/report/
 .coverage
 .eggs/
 .tox/
+dddp/test/build/
+dddp/test/meteor_todos/.meteor/
