@@ -5,7 +5,7 @@ import sys
 from gevent.local import local
 from dddp import alea
 
-__version__ = '0.17.3'
+__version__ = '0.18.0'
 
 default_app_config = 'dddp.apps.DjangoDDPConfig'
 
@@ -25,11 +25,9 @@ def greenify():
 
     from gevent.monkey import patch_all, saved
     if ('threading' in sys.modules) and ('threading' not in saved):
-        raise Exception('threading module loaded before patching!')
+        import warnings
+        warnings.warn('threading module loaded before patching!')
     patch_all()
-
-    from psycogreen.gevent import patch_psycopg
-    patch_psycopg()
 
     try:
         # Use psycopg2 by default
@@ -39,6 +37,9 @@ def greenify():
         # Fallback to psycopg2cffi if required (eg: pypy)
         from psycopg2cffi import compat
         compat.register()
+
+    from psycogreen.gevent import patch_psycopg
+    patch_psycopg()
 
 
 class AlreadyRegistered(Exception):

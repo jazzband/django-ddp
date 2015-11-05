@@ -1,12 +1,43 @@
 Django DDP
 ==========
 
-Django_/PostgreSQL_ implementation of the Meteor DDP service, allowing Meteor_ to subscribe to changes on Django_ models.  Released under the MIT license.
+`Django DDP`_ is a Django_/PostgreSQL_ implementation of the Meteor DDP server, allowing Meteor_ to subscribe to changes on Django_ models.  Released under the MIT license.
 
 
 Requirements
 ------------
-The core concept is that events are dispatched asynchronously to browsers using WebSockets_ and server-side using a PostgreSQL_ extension to the SQL syntax called NOTIFY (and its bretheren, LISTEN and UNLISTEN).  You must be using PostgreSQL_ with psycopg2_ in your Django_ project for django-ddp to work.  There is no requirement on any asynchronous framework such as Reddis or crossbar.io as they are simply not needed given the asynchronous support provided by PostgreSQL_ with psycopg2_.  As an added bonus, events dispatched using NOTIFY in a transaction are only emitted if the transaction is successfully committed.
+You must be using PostgreSQL_ with psycopg2_ in your Django_ project for django-ddp to work.  There is no requirement on any asynchronous framework such as Reddis or crossbar.io as they are simply not needed given the asynchronous support provided by PostgreSQL_ with psycopg2_.
+
+
+Installation
+------------
+
+Install the latest release from pypi (recommended):
+
+.. code:: sh
+
+    pip install django-ddp
+
+Clone and use development version direct from GitHub to test pre-release code (no GitHub account required):
+
+.. code:: sh
+
+    pip install -e git+https://github.com/commoncode/django-ddp@develop#egg=django-ddp
+
+
+Overview and getting started
+----------------------------
+
+1. Django DDP registers handlers for `Django signals`_ on all model save/update operations.
+    * Add ``'dddp'`` to INSTALLED_APPS in your project settings file.
+2. Each Django application (ie: your code) registers Collections and Publications via ``ddp`` sub-modules for all INSTALLED_APPS.
+    * Register collections and publications in a file named ``dddp.py`` inside your application module.
+3. Clients subscribe to publications, entries are written into the ``dddp.Subscription`` and ``dddp.SubscriptionCollection`` model tables and the ``get_queries`` method of publications are called to retrieve the Django ORM queries that contain the objects that will be sent to the client.
+    * Run ``manage.py migrate`` to update your database so it has the necessary tables needed for tracking client subscriptions.
+4. When models are saved, the Django DDP signal handlers send change messages to clients subscribed to relevant publications.
+    * Use the model ``save()`` and ``delete()`` methods as appropriate in your application code so that appropriate signals are raised and change messages are sent.
+5. Gevent_ is used to run WebSocket connections concurrently along with any Django views defined in your project (via your project ``urls.py``).
+    * Run your application using the ``dddp`` command which sets up the gevent mainloop and serves your Django project views.  This command takes care of routing WebSocket connections according to the URLs that Meteor uses, do not add URLs for WebSocket views to your project ``urls.py``.
 
 
 Scalability
@@ -33,22 +64,6 @@ Limitations
   signals`_ to receive model save/update signals.  There are no
   technical reasons why database triggers couldn't be used - pull
   requests are welcome.
-
-
-Installation
-------------
-
-Install the latest release from pypi (recommended):
-
-.. code:: sh
-
-    pip install django-ddp
-
-Clone and use development version direct from GitHub (to test pre-release code):
-
-.. code:: sh
-
-    pip install -e git+https://github.com/commoncode/django-ddp@develop#egg=django-ddp
 
 
 Example usage
@@ -247,6 +262,7 @@ by the awesome team at `Common Code`_.
 .. _Django: https://www.djangoproject.com/
 .. _Django signals: https://docs.djangoproject.com/en/stable/topics/signals/
 .. _Common Code: https://commoncode.com.au/
+.. _Gevent: http://www.gevent.org/
 .. _PostgreSQL: http://postgresql.org/
 .. _psycopg2: http://initd.org/psycopg/
 .. _WebSockets: http://www.w3.org/TR/websockets/
