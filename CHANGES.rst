@@ -1,6 +1,12 @@
 Change Log
 ==========
 
+0.18.0
+------
+* Python implementaiton specific builds using tox so that Python2 and 
+  Python3 can have different dependencies (eg: gevent>=1.1 for Pyton3).
+* Added support for `METEOR_SETTINGS` environment variable.
+
 0.17.3
 ------
 * Depend on gevent>=1.1b6 if running anything other than CPython 2.7, 
