@@ -10,7 +10,6 @@ import uuid
 # requirements
 import dbarray
 from django.conf import settings
-from django.contrib.auth import get_user_model
 import django.contrib.postgres.fields
 from django.db import connections, router
 from django.db.models import aggregates, Q
@@ -270,6 +269,13 @@ class Collection(APIMixin):
 
     queryset = property(get_queryset)
 
+    @property
+    def user_model(self):
+        """Cached property getter around `get_user_model`."""
+        from django.contrib.auth import get_user_model
+        val = self.__dict__['user_model'] = get_user_model()
+        return val
+
     def objects_for_user(self, user, qs=None, xmin__lte=None):
         """Find objects in queryset related to specified user."""
         qs = self.get_queryset(qs)
@@ -329,7 +335,7 @@ class Collection(APIMixin):
 
             if self.always_allow_superusers:
                 user_ids.update(
-                    get_user_model().objects.filter(
+                    self.user_model.objects.filter(
                         is_superuser=True, is_active=True,
                     ).values_list('pk', flat=True)
                 )
