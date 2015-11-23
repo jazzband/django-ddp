@@ -6,8 +6,10 @@ import ejson
 import gevent
 import gevent.queue
 import gevent.select
+import os
 import psycopg2  # green
 import psycopg2.extensions
+import socket
 
 
 class PostgresGreenlet(gevent.Greenlet):
@@ -33,15 +35,23 @@ class PostgresGreenlet(gevent.Greenlet):
     def _run(self):  # pylint: disable=method-hidden
         """Spawn sub tasks, wait for stop signal."""
         conn_params = self.connection.get_connection_params()
+        # See http://initd.org/psycopg/docs/module.html#psycopg2.connect and
+        # http://www.postgresql.org/docs/current/static/libpq-connect.html
+        # section 31.1.2 (Parameter Key Words) for details on available params.
         conn_params.update(
             async=True,
+            application_name='{} pid={} django-ddp'.format(
+                socket.gethostname(),  # hostname
+                os.getpid(),  # PID
+            )[:64],  # 64 characters for default PostgreSQL build config
         )
         conn = psycopg2.connect(**conn_params)
         self.poll(conn)  # wait for conneciton to start
-        cur = conn.cursor()
 
         import logging
         logging.getLogger('dddp').info('=> Started PostgresGreenlet.')
+
+        cur = conn.cursor()
         cur.execute('LISTEN "ddp";')
         while not self._stop_event.is_set():
             try:
