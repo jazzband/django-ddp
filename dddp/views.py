@@ -96,16 +96,14 @@ class MeteorView(View):
           4. MeteorView.as_view(meteor_public_envs=...)
         """
         self.runtime_config = {}
-        self.meteor_settings = reduce(
-            dict_merge,
-            [
+        self.meteor_settings = {}
+        for other in [
                 getattr(settings, 'METEOR_SETTINGS', {}),
                 loads(os.environ.get('METEOR_SETTINGS', '{}')),
                 self.meteor_settings or {},
                 kwargs.pop('meteor_settings', {}),
-            ],
-            {},
-        )
+        ]:
+            self.meteor_settings = dict_merge(self.meteor_settings, other)
         self.meteor_public_envs = set()
         self.meteor_public_envs.update(
             getattr(settings, 'METEOR_PUBLIC_ENVS', []),
