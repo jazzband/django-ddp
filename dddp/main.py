@@ -189,6 +189,9 @@ class DDPLauncher(object):
         for server in self.servers + [DDPLauncher.pgworker]:
             self.logger.debug('Stopping %s', server)
             server.stop()
+        # wait for all threads to stop.
+        gevent.joinall(self.threads + [DDPLauncher.pgworker])
+        self.threads = []
 
     def start(self):
         """Run PostgresGreenlet and web/debug servers."""
@@ -229,6 +232,7 @@ class DDPLauncher(object):
         self._stop_event.wait()
         # wait for all threads to stop.
         gevent.joinall(self.threads + [DDPLauncher.pgworker])
+        self.threads = []
 
 
 def addr(val, default_port=8000, defualt_host='localhost'):
