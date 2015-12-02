@@ -1,8 +1,22 @@
 #!/usr/bin/env python
-"""Django/PostgreSQL implementation of the Meteor DDP service."""
-import platform
+"""Django/PostgreSQL implementation of the Meteor server."""
+
+from distutils.version import StrictVersion
+import setuptools
 import sys
-from setuptools import setup, find_packages
+
+# setuptools 18.5 introduces support for the `platform_python_implementation`
+# environment marker: https://github.com/jaraco/setuptools/pull/28
+
+if not StrictVersion(setuptools.__version__) >= StrictVersion('18.5'):
+    # TODO: Is there an official way to upgrade setuptools in-place?
+    import subprocess
+    subprocess.check_call(['pip', 'install', '-U', 'setuptools>=18.5'])
+    sys.stderr.write(
+        'Your setuptools has been upgraded, '
+        'please re-run setup to continue.'
+    )
+    sys.exit(1)
 
 CLASSIFIERS = [
     # Beta status until 1.0 is released
@@ -44,21 +58,7 @@ CLASSIFIERS = [
     "Framework :: Django :: 1.8",
 ]
 
-# Ensure correct dependencies between different python implementations.
-IMPLEMENTATION_INSTALL_REQUIRES = {
-    # extra requirements for CPython implementation
-    'CPython': [
-        'psycopg2>=2.5.4',
-        'gevent>=1.1b6' if sys.version_info >= (3, 0) else 'gevent>=1.0',
-    ],
-    # extra requirements for all other Python implementations
-    None: [
-        'psycopg2cffi>=2.7.2',
-        'gevent>=1.1b6',
-    ],
-}
-
-setup(
+setuptools.setup(
     name='django-ddp',
     version='0.18.1',
     description=__doc__,
@@ -67,20 +67,40 @@ setup(
     author_email='tyson@clugg.net',
     url='https://github.com/commoncode/django-ddp',
     license='MIT',
-    packages=find_packages(),
+    packages=setuptools.find_packages(),
     include_package_data=True,
+    setup_requires=[
+        'setuptools>=18.5',
+    ],
     install_requires=[
         'Django>=1.7',
+        'django-dbarray>=0.2',
         'gevent-websocket>=0.9,!=0.9.4',
         'meteor-ejson>=1.0',
         'psycogreen>=1.0',
-        'django-dbarray>=0.2',
         'pybars3>=0.9.1',
         'six>=1.10.0',
-    ] + IMPLEMENTATION_INSTALL_REQUIRES.get(
-        platform.python_implementation(),
-        IMPLEMENTATION_INSTALL_REQUIRES[None],  # default to non-CPython reqs
-    ),
+    ],
+    extras_require={
+        # CPython < 3.0 can use gevent 1.0
+        ':platform_python_implementation == "CPython" '
+        'and python_version < "3.0"': [
+            'gevent>=1.0',
+        ],
+        # everything else needs gevent 1.1
+        ':platform_python_implementation != "CPython" '
+        'or python_version >= "3.0"': [
+            'gevent>=1.1rc1',
+        ],
+        # CPython can use plain old psycopg2
+        ':platform_python_implementation == "CPython"': [
+            'psycopg2>=2.5.4',
+        ],
+        # everything else must use psycopg2cffi
+        ':platform_python_implementation != "CPython"': [
+            'psycopg2cffi>=2.7.2',
+        ],
+    },
     entry_points={
         'console_scripts': [
             'dddp=dddp.main:main',
