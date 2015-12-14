@@ -13,5 +13,5 @@ def run_tests():
     dddp.greenify()
     django.setup()
     test_runner = get_runner(settings)()
-    failures = test_runner.run_tests(['dddp'])
+    failures = test_runner.run_tests(['dddp', 'dddp.test.django_todos'])
     sys.exit(bool(failures))
