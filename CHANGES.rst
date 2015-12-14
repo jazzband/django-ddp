@@ -11,6 +11,7 @@ develop
   `python_platform_implementation` environment marker.
 * Moved repository to https://github.com/django-ddp/django-ddp (new
   Github organisation).
+* Fail on start if any child threads can't start (eg: port in use).
 * Add missing versions and dates to the change log, and note on Semantic 
   Versioning.
 * Back to universal wheels, thanks to PEP-0496 environment markers.

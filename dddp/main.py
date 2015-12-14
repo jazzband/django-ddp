@@ -207,7 +207,12 @@ class DDPLauncher(object):
         self.print('=> Started PostgresGreenlet.')
         for server in self.servers:
             thread = gevent.spawn(server.serve_forever)
+            gevent.sleep()  # yield to thread in case it can't start
             self.threads.append(thread)
+            if thread.dead:
+                # thread died, stop everything and re-raise the exception.
+                self.stop()
+                thread.get()
             if isinstance(server, geventwebsocket.WebSocketServer):
                 self.print(
                     '=> App running at: %s://%s:%d/' % (
