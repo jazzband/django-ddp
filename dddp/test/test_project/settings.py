@@ -62,7 +62,11 @@ WSGI_APPLICATION = 'dddp.test.test_project.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'django_ddp_test_project',
+        'NAME': os.environ.get('PGDATABASE', 'django_ddp_test_project'),
+        'USER': os.environ.get('PGUSER', os.environ['LOGNAME']),
+        'PORT': int(os.environ.get('PGPORT', '0')) or None,
+        'PASSWORD': os.environ.get('PGPASSWORD', '') or None,
+        'HOST': os.environ.get('PGHOST', '') or None,
     }
 }
 
