@@ -107,6 +107,7 @@ def api_endpoint(path_or_func=None, decorate=True):
 
     Examples:
 
+        >>> from dddp.api import APIMixin, api_endpoint
         >>> class Counter(APIMixin):
         ...     value = 0
         ...
