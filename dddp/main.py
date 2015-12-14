@@ -103,9 +103,7 @@ class DDPLauncher(object):
             # shutdown existing connections
             close_old_connections()
 
-            DDPLauncher.pgworker = PostgresGreenlet(
-                connection, debug=debug,
-            )
+            DDPLauncher.pgworker = PostgresGreenlet(connection)
 
         # use settings.WSGI_APPLICATION or fallback to default Django WSGI app
         from django.conf import settings

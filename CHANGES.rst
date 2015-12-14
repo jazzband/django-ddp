@@ -22,6 +22,7 @@ develop
 * Tox test suite updated to runs against Python 2.7/3.3/3.4/3.5 and
   Django 1.8/1.9.
 * Build wheels from tox environment to ensure consistency.
+* Remove `debug` argment from `PostgresGreenlet` class (unused).
 
 0.18.1 (2015-11-06)
 -------------------

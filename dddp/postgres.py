@@ -16,7 +16,7 @@ class PostgresGreenlet(gevent.Greenlet):
 
     """Greenlet for multiplexing database operations."""
 
-    def __init__(self, conn, debug=False):
+    def __init__(self, conn):
         """Prepare async connection."""
         super(PostgresGreenlet, self).__init__()
         import logging
