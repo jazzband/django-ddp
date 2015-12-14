@@ -20,3 +20,6 @@ tests/report/
 .tox/
 dddp/test/build/
 dddp/test/meteor_todos/.meteor/
+
+docs/_build/
+docs/node_modules/
