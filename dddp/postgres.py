@@ -45,7 +45,25 @@ class PostgresGreenlet(gevent.Greenlet):
                 os.getpid(),  # PID
             )[:64],  # 64 characters for default PostgreSQL build config
         )
-        conn = psycopg2.connect(**conn_params)
+        conn = None
+        while conn is None:
+            try:
+                conn = psycopg2.connect(**conn_params)
+            except psycopg2.OperationalError as err:
+                # Some variants of the psycopg2 driver for Django add extra
+                # params that aren't meant to be passed directly to
+                # `psycopg2.connect()` -- issue a warning and try again.
+                msg = ('%s' % err).strip()
+                msg_prefix = 'invalid connection option "'
+                if not msg.startswith(msg_prefix):
+                    # *waves hand* this is not the errror you are looking for.
+                    raise
+                key = msg[len(msg_prefix):-1]
+                self.logger.warning(
+                    'Ignoring unknown settings.DATABASES[%r] option: %s=%r',
+                    self.connection.alias,
+                    key, conn_params.pop(key),
+                )
         self.poll(conn)  # wait for conneciton to start
 
         import logging
