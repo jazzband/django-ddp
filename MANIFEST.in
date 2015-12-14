@@ -2,11 +2,12 @@ include LICENSE
 include *.rst
 include *.sh
 include *.txt
+include requirements*.txt
 include .gitignore
-include .coveragerc
 include Makefile
-graft docs
-prune docs/_build
-include tox.ini
+exclude tox.ini
 graft dddp/test/meteor_todos
-prune dddp/test/meteor_todos/.meteor
+graft dddp/test/build
+prune docs
+exclude .travis.yml.sh
+exclude .travis.yml
