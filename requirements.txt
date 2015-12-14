@@ -1,5 +1,7 @@
-Django==1.8.5
-gevent==1.0.2
+Django>=1.7
+gevent==1.0.2 ; platform_python_implementation == "CPython" and python_version < "3.0"
+gevent==1.1rc2 ; platform_python_implementation != "CPython" or python_version >= "3.0"
 gevent-websocket==0.9.5
-psycopg2==2.6.1
+psycopg2==2.6.1 ; platform_python_implementation == "CPython"
+psycopg2cffi>=2.7.2 ; platform_python_implementation != "CPython"
 six==1.10.0

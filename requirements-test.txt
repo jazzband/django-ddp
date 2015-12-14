@@ -1,0 +1,2 @@
+# things required to run test suite
+# (nothing required! we use unittest from stdlib...)

@@ -6,6 +6,11 @@ This project adheres to `Semantic Versioning <http://semver.org/>`_.
 
 develop
 -------
+* Dropped support for Django 1.7 (didn't work anyway).
+* Require `setuptools>=18.5` at install time due to use of
+  `python_platform_implementation` environment marker.
+* Moved repository to https://github.com/django-ddp/django-ddp (new
+  Github organisation).
 * Add missing versions and dates to the change log, and note on Semantic 
   Versioning.
 * Back to universal wheels, thanks to PEP-0496 environment markers.
@@ -13,6 +18,9 @@ develop
 * Set `application_name` on PostgreSQL async connection.
 * Send `django.core.signals.request_finished` when closing WebSocket.
 * Don't require `DJANGO_SETTINGS_MODULE` to import API.
+* Tox test suite updated to runs against Python 2.7/3.3/3.4/3.5 and
+  Django 1.8/1.9.
+* Build wheels from tox environment to ensure consistency.
 
 0.18.1 (2015-11-06)
 -------------------

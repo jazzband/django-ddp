@@ -1,3 +1,4 @@
+==========
 Django DDP
 ==========
 
@@ -259,6 +260,7 @@ Contributors
 This project is forever grateful for the love, support and respect given 
 by the awesome team at `Common Code`_.
 
+.. _Django DDP: https://github.com/django-ddp/django-ddp
 .. _Django: https://www.djangoproject.com/
 .. _Django signals: https://docs.djangoproject.com/en/stable/topics/signals/
 .. _Common Code: https://commoncode.com.au/
