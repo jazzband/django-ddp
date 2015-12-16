@@ -5,6 +5,7 @@
 sudo: false
 
 language: python
+  - "3.5"
 
 env:
   - TOXENV="py27-django1.8"
@@ -26,7 +27,7 @@ install:
   - pip install -U tox coveralls setuptools
 
 script:
-  - PATH="$HOME/.meteor:$PATH" tox
+  - PATH="$HOME/.meteor:$PATH" tox -vvvv
 
 after_success:
   coveralls
