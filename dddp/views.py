@@ -3,7 +3,6 @@ from __future__ import absolute_import, unicode_literals
 
 from copy import deepcopy
 import io
-import logging
 import mimetypes
 import os.path
 
@@ -58,15 +57,10 @@ class MeteorView(View):
 
     """Django DDP Meteor server view."""
 
-    logger = logging.getLogger(__name__)
     http_method_names = ['get', 'head']
 
     json_path = None
     runtime_config = None
-
-    manifest = None
-    program_json = None
-    program_json_path = None
 
     star_json = None  # top level layout
 
@@ -86,7 +80,7 @@ class MeteorView(View):
         """
         Initialisation for Django DDP server view.
 
-        `Meteor.settings` is sourced from the following (later take precedence):
+        The following items populate `Meteor.settings` (later take precedence):
           1. django.conf.settings.METEOR_SETTINGS
           2. os.environ['METEOR_SETTINGS']
           3. MeteorView.meteor_settings (class attribute) or empty dict
@@ -253,18 +247,14 @@ class MeteorView(View):
 
     def get(self, request, path):
         """Return HTML (or other related content) for Meteor."""
-        self.logger.debug(
-            '[%s:%s] %s %s %s',
-            request.META['REMOTE_ADDR'], request.META['REMOTE_PORT'],
-            request.method, request.path,
-            request.META['SERVER_PROTOCOL'],
-        )
         if path == 'meteor_runtime_config.js':
             config = {
                 'DDP_DEFAULT_CONNECTION_URL': request.build_absolute_uri('/'),
                 'PUBLIC_SETTINGS': self.meteor_settings.get('public', {}),
                 'ROOT_URL': request.build_absolute_uri(
-                    '%s/' % self.runtime_config.get('ROOT_URL_PATH_PREFIX', ''),
+                    '%s/' % (
+                        self.runtime_config.get('ROOT_URL_PATH_PREFIX', ''),
+                    ),
                 ),
                 'ROOT_URL_PATH_PREFIX': '',
             }
