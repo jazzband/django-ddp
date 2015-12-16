@@ -20,6 +20,10 @@ develop
 * Emit `django.core.signals.request_finished` to close DB connection and 
   yield to other greenlets between processing messages from WebSocket.
 * Back to universal wheels, thanks to PEP-0496 environment markers.
+* Expand test suite coverage to start a DDP server instance and perform
+  a HTTP GET request, no WebSocket/DDP tests yet.  Fails in Pyton 3
+  because of a bug in `gevent-websocket`
+  (https://bitbucket.org/noppo/gevent-websocket/issues/54/python-3-support).
 * Fix for #23 (Python 3 compatibility).
 * Set `application_name` on PostgreSQL async connection.
 * Send `django.core.signals.request_finished` when closing WebSocket.
