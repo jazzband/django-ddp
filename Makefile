@@ -19,10 +19,10 @@ clean-docs:
 	$(MAKE) -C docs/ clean
 
 clean-dist:
-	rm -f "${SDIST}" "${WHEEL}"
+	rm -rf "${SDIST}" "${WHEEL}" dddp/test/build/ dddp/test/meteor_todos/.meteor/local/
 
 clean-pyc:
-	find . -type f -name \*.pyc -print0 | xargs -0 rm
+	find . -type f -name \*.pyc -print0 | xargs -0 rm -f
 
 docs: $(shell find docs/ -type f -name \*.rst) docs/conf.py docs/Makefile $(shell find docs/_static/ -type f) $(shell find docs/_templates/ -type f) README.rst CHANGES.rst
 	$(MAKE) -C docs/ clean html
@@ -33,11 +33,11 @@ dist: ${SDIST} ${WHEEL}
 
 ${SDIST}: dist.intermediate
 	@echo "Testing ${SDIST}..."
-	tox --installpkg ${SDIST}
+	tox --notest --installpkg ${SDIST}
 
 ${WHEEL}: dist.intermediate
 	@echo "Testing ${WHEEL}..."
-	tox --installpkg ${WHEEL}
+	tox --notest --installpkg ${WHEEL}
 
 dist.intermediate: $(shell find dddp -type f)
 	tox -e dist

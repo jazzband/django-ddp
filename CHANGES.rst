@@ -4,9 +4,10 @@ Change Log
 All notable changes to this project will be documented in this file.  
 This project adheres to `Semantic Versioning <http://semver.org/>`_.
 
-develop
--------
-* Dropped support for Django 1.7 (didn't work anyway).
+0.19.1
+------
+* Dropped support for Django 1.7 (support expired on December 1 2015, 
+  see https://www.djangoproject.com/download/#supported-versions).
 * Require `setuptools>=18.5` at install time due to use of
   `python_platform_implementation` environment marker.
 * Moved repository to https://github.com/django-ddp/django-ddp (new
