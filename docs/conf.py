@@ -15,7 +15,29 @@
 import sys
 import os
 
-import cloud_sptheme as csp
+import django
+from django.conf import settings
+
+settings.configure(
+    INSTALLED_APPS=[
+        'django.contrib.auth',
+        'django.contrib.contenttypes',
+        'dddp',
+    ],
+    DATABASES={
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql_psycopg2',
+            'NAME': os.environ.get('PGDATABASE', 'django_ddp_docs_project'),
+            'USER': os.environ.get('PGUSER', os.environ['LOGNAME']),
+            'PORT': int(os.environ.get('PGPORT', '0')) or None,
+            'PASSWORD': os.environ.get('PGPASSWORD', '') or None,
+            'HOST': os.environ.get('PGHOST', '') or None,
+        },
+    },
+)
+django.setup()
+
+import alabaster
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
@@ -32,12 +54,18 @@ import cloud_sptheme as csp
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.doctest',
+    'sphinx.ext.napoleon',
     'sphinx.ext.todo',
     'sphinx.ext.coverage',
     'sphinx.ext.viewcode',
-    'cloud_sptheme.ext.index_styling',
-    'cloud_sptheme.ext.relbar_toc',
+    'rst2pdf.pdfbuilder',
+    'sphinxcontrib.dashbuilder',
+    'alabaster',
 ]
+
+# Show `.. todo::` items in output.
+todo_include_todos = True
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -107,17 +135,22 @@ pygments_style = 'sphinx'
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'cloud'
+html_theme = 'alabaster'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 html_theme_options = {
-    'max_width': '80em',
+    'logo': 'django-ddp-logo.png',
+    'github_user': 'django-ddp',
+    'github_repo': 'django-ddp',
+    'github_button': 'true',
+    'github_type': 'star',
+    'github_banner': 'true',
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
-html_theme_path = [csp.get_theme_dir()]
+html_theme_path = [alabaster.get_path()]
 
 # The name for this set of Sphinx documents.  If None, it defaults to
 # "<project> v<release> documentation".
@@ -154,7 +187,15 @@ html_static_path = ['_static']
 #html_use_smartypants = True
 
 # Custom sidebar templates, maps document names to template names.
-#html_sidebars = {}
+html_sidebars = {
+    '**': [
+        'about.html',
+        'navigation.html',
+        'relations.html',
+        'searchbox.html',
+        'donate.html',
+    ],
+}
 
 # Additional templates that should be rendered to pages, maps page names to
 # template names.
@@ -267,3 +308,21 @@ texinfo_documents = [
 
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #texinfo_no_detailmenu = False
+
+# Grouping the document tree into PDF files. List of tuples
+# (source start file, target name, title, author, options).
+#
+# If there is more than one author, separate them with \\.
+# For example: r'Guido van Rossum\\Fred L. Drake, Jr., editor'
+#
+# The options element is a dictionary that lets you override
+# this config per-document.
+# For example,
+# ('index', u'MyProject', u'My Project', u'Author Name',
+#  dict(pdf_compressed = True))
+# would mean that specific document would be compressed
+# regardless of the global pdf_compressed setting.
+
+pdf_documents = [
+    ('changes', u'django-ddp', u'django-ddp', u'Tyson Clugg'),
+]

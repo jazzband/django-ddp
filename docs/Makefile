@@ -4,7 +4,7 @@
 # You can set these variables from the command line.
 SPHINXOPTS    =
 SPHINXBUILD   = sphinx-build
-PAPER         =
+PAPER         = a4
 BUILDDIR      = _build
 
 # User-friendly check for sphinx-build
@@ -175,3 +175,13 @@ pseudoxml:
 	$(SPHINXBUILD) -b pseudoxml $(ALLSPHINXOPTS) $(BUILDDIR)/pseudoxml
 	@echo
 	@echo "Build finished. The pseudo-XML files are in $(BUILDDIR)/pseudoxml."
+
+pdf:
+	$(SPHINXBUILD) -b pdf $(ALLSPHINXOPTS) _build/pdf
+	@echo
+	@echo "Build finished. The PDF files are in _build/pdf."
+
+dash:
+	$(SPHINXBUILD) -b dash $(ALLSPHINXOPTS) _build/dash
+	@echo
+	@echo "Build finished. The DASH files are in _build/dash."
