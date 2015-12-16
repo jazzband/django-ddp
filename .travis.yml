@@ -19,6 +19,9 @@ env:
   - TOXENV="pypy-django1.8"
   - TOXENV="pypy-django1.9"
 
+before_install:
+  - curl https://install.meteor.com/ | sh
+
 install:
   - pip install -U tox coveralls setuptools
 
