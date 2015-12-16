@@ -121,6 +121,9 @@ THREAD_LOCAL_FACTORIES = {
     'alea_random': alea.Alea,
     'random_streams': RandomStreams,
     'serializer': serializer_factory,
+    'user_id': lambda: None,
+    'user_ddp_id': lambda: None,
+    'user': lambda: None,
 }
 THREAD_LOCAL = ThreadLocal()
 METEOR_ID_CHARS = u'23456789ABCDEFGHJKLMNPQRSTWXYZabcdefghijkmnopqrstuvwxyz'

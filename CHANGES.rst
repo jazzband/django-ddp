@@ -13,6 +13,8 @@ develop
   Github organisation).
 * Started work on documentation refresh.
 * Fail on start if any child threads can't start (eg: port in use).
+* Rudimentary support for dynamic publications which may now refer to `this.user`.
+* Correctly close DB connections during shutdown, useful for test suite.
 * Add missing versions and dates to the change log, and note on Semantic 
   Versioning.
 * Emit `django.core.signals.request_finished` to close DB connection and 
