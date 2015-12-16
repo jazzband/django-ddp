@@ -5,29 +5,44 @@
 sudo: false
 
 language: python
+  - "2.7"
+  - "3.3"
+  - "3.4"
   - "3.5"
+  - "pypy"
+  - "pypy3"
 
 env:
-  - TOXENV="py27-django1.8"
-  - TOXENV="py27-django1.9"
-  - TOXENV="py33-django1.8"
-  - TOXENV="py34-django1.8"
-  - TOXENV="py34-django1.9"
-  - TOXENV="py35-django1.8"
-  - TOXENV="py35-django1.9"
-  - TOXENV="pypy3-django1.8"
-  - TOXENV="pypy3-django1.9"
-  - TOXENV="pypy-django1.8"
-  - TOXENV="pypy-django1.9"
+  - DJANGO="1.8"
+  - DJANGO="1.9"
+  - PGDATABASE="django_ddp_test_project"
+  - PGUSER="postgres"
+
+matrix:
+  exclude:
+    - python: "3.3"
+      env: DJANGO="1.9"
+
+services:
+  - postgresql
 
 before_install:
   - curl https://install.meteor.com/ | sh
 
 install:
   - pip install -U tox coveralls setuptools
+  - [[ $TRAVIS_PYTHON_VERSION == "2.7" ]] && PYENV="py27"
+  - [[ $TRAVIS_PYTHON_VERSION == "3.3" ]] && PYENV="py33"
+  - [[ $TRAVIS_PYTHON_VERSION == "3.4" ]] && PYENV="py34"
+  - [[ $TRAVIS_PYTHON_VERSION == "3.5" ]] && PYENV="py35"
+  - [[ $TRAVIS_PYTHON_VERSION == "pypy" ]] && PYENV="pypy"
+  - [[ $TRAVIS_PYTHON_VERSION == "pypy3" ]] && PYENV="pypy3"
+
+before_script:
+  - psql -c "create database ${PGDATABASE};"
 
 script:
-  - PATH="$HOME/.meteor:$PATH" tox -vvvv
+  - PATH="$HOME/.meteor:$PATH" tox -vvvv -e ${PYENV}-django${DJANGO}
 
 after_success:
   coveralls
