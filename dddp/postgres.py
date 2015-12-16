@@ -83,7 +83,9 @@ class PostgresGreenlet(gevent.Greenlet):
             finally:
                 self.select_greenlet = None
             self.poll(conn)
+        self.poll(conn)
         cur.close()
+        self.poll(conn)
         conn.close()
 
     def stop(self):
