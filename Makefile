@@ -11,7 +11,7 @@ WHEEL := dist/$(subst -,_,${NAME})-${VERSION}-py2.py3-none-any.whl
 all: .travis.yml docs dist
 
 test:
-	tox -vvv
+	tox --skip-missing-interpreters -vvv
 
 clean: clean-docs clean-dist clean-pyc
 
@@ -33,11 +33,11 @@ dist: ${SDIST} ${WHEEL}
 
 ${SDIST}: dist.intermediate
 	@echo "Testing ${SDIST}..."
-	tox --notest --installpkg ${SDIST}
+	tox --skip-missing-interpreters --notest --installpkg ${SDIST}
 
 ${WHEEL}: dist.intermediate
 	@echo "Testing ${WHEEL}..."
-	tox --notest --installpkg ${WHEEL}
+	tox --skip-missing-interpreters --notest --installpkg ${WHEEL}
 
 dist.intermediate: $(shell find dddp -type f)
 	tox -e dist
