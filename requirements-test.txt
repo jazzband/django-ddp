@@ -1,0 +1,2 @@
+# things required to run test suite
+requests==2.9.0

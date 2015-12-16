@@ -12,7 +12,9 @@ import traceback
 from six.moves import range as irange
 
 import ejson
+import gevent
 import geventwebsocket
+from django.core import signals
 from django.core.handlers.base import BaseHandler
 from django.core.handlers.wsgi import WSGIRequest
 from django.db import connection, transaction
@@ -151,6 +153,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
             del self.pgworker.connections[self.connection.pk]
             self.connection.delete()
             self.connection = None
+        signals.request_finished.send(sender=self.__class__)
         self.logger.info('- %s %s', self, args or 'CLOSE')
 
     def on_message(self, message):
@@ -195,6 +198,11 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
                 except Exception as err:
                     traceback.print_exc()
                     self.error(err)
+                # emit request_finished signal to close DB connections
+                signals.request_finished.send(sender=self.__class__)
+                if msgs:
+                    # yield to other greenlets before processing next msg
+                    gevent.sleep()
         except geventwebsocket.WebSocketError as err:
             self.ws.close()
 

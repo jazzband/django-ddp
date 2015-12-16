@@ -6,15 +6,17 @@ import ejson
 import gevent
 import gevent.queue
 import gevent.select
+import os
 import psycopg2  # green
 import psycopg2.extensions
+import socket
 
 
 class PostgresGreenlet(gevent.Greenlet):
 
     """Greenlet for multiplexing database operations."""
 
-    def __init__(self, conn, debug=False):
+    def __init__(self, conn):
         """Prepare async connection."""
         super(PostgresGreenlet, self).__init__()
         import logging
@@ -33,15 +35,41 @@ class PostgresGreenlet(gevent.Greenlet):
     def _run(self):  # pylint: disable=method-hidden
         """Spawn sub tasks, wait for stop signal."""
         conn_params = self.connection.get_connection_params()
+        # See http://initd.org/psycopg/docs/module.html#psycopg2.connect and
+        # http://www.postgresql.org/docs/current/static/libpq-connect.html
+        # section 31.1.2 (Parameter Key Words) for details on available params.
         conn_params.update(
             async=True,
+            application_name='{} pid={} django-ddp'.format(
+                socket.gethostname(),  # hostname
+                os.getpid(),  # PID
+            )[:64],  # 64 characters for default PostgreSQL build config
         )
-        conn = psycopg2.connect(**conn_params)
+        conn = None
+        while conn is None:
+            try:
+                conn = psycopg2.connect(**conn_params)
+            except psycopg2.OperationalError as err:
+                # Some variants of the psycopg2 driver for Django add extra
+                # params that aren't meant to be passed directly to
+                # `psycopg2.connect()` -- issue a warning and try again.
+                msg = ('%s' % err).strip()
+                msg_prefix = 'invalid connection option "'
+                if not msg.startswith(msg_prefix):
+                    # *waves hand* this is not the errror you are looking for.
+                    raise
+                key = msg[len(msg_prefix):-1]
+                self.logger.warning(
+                    'Ignoring unknown settings.DATABASES[%r] option: %s=%r',
+                    self.connection.alias,
+                    key, conn_params.pop(key),
+                )
         self.poll(conn)  # wait for conneciton to start
-        cur = conn.cursor()
 
         import logging
         logging.getLogger('dddp').info('=> Started PostgresGreenlet.')
+
+        cur = conn.cursor()
         cur.execute('LISTEN "ddp";')
         while not self._stop_event.is_set():
             try:
@@ -55,7 +83,9 @@ class PostgresGreenlet(gevent.Greenlet):
             finally:
                 self.select_greenlet = None
             self.poll(conn)
+        self.poll(conn)
         cur.close()
+        self.poll(conn)
         conn.close()
 
     def stop(self):

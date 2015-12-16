@@ -1,11 +1,11 @@
-"""Django/PostgreSQL implementation of the Meteor DDP service."""
+"""Django/PostgreSQL implementation of the Meteor server."""
 from __future__ import unicode_literals
-import os.path
 import sys
 from gevent.local import local
 from dddp import alea
 
-__version__ = '0.18.1'
+__version__ = '0.19.0'
+__url__ = 'https://github.com/django-ddp/django-ddp'
 
 default_app_config = 'dddp.apps.DjangoDDPConfig'
 
@@ -121,6 +121,9 @@ THREAD_LOCAL_FACTORIES = {
     'alea_random': alea.Alea,
     'random_streams': RandomStreams,
     'serializer': serializer_factory,
+    'user_id': lambda: None,
+    'user_ddp_id': lambda: None,
+    'user': lambda: None,
 }
 THREAD_LOCAL = ThreadLocal()
 METEOR_ID_CHARS = u'23456789ABCDEFGHJKLMNPQRSTWXYZabcdefghijkmnopqrstuvwxyz'

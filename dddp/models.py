@@ -4,7 +4,7 @@ from __future__ import absolute_import
 import collections
 import os
 
-from django.db import models, transaction
+from django.db import models
 from django.db.models.fields import NOT_PROVIDED
 from django.conf import settings
 from django.contrib.contenttypes.fields import (

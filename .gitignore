@@ -2,21 +2,30 @@
 # $GIT_DIR/info/exclude or the core.excludesFile configuration variable as
 # described in https://git-scm.com/docs/gitignore
 
-*.egg-info
+# python
 *.pot
 *.py[co]
 __pycache__
+
+# distutils/setuptools
+.eggs/
+*.egg-info
 MANIFEST
 dist/
+build/
+
+# docs
 docs/_build/
 docs/locale/
-node_modules/
-tests/coverage_html/
-tests/.coverage
-build/
-tests/report/
+docs/node_modules/
+
+# test suite
+.cache/
 .coverage
-.eggs/
 .tox/
+htmlcov/
+tests/report/
+
+# meteor
 dddp/test/build/
 dddp/test/meteor_todos/.meteor/

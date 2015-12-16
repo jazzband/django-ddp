@@ -103,9 +103,7 @@ class DDPLauncher(object):
             # shutdown existing connections
             close_old_connections()
 
-            DDPLauncher.pgworker = PostgresGreenlet(
-                connection, debug=debug,
-            )
+            DDPLauncher.pgworker = PostgresGreenlet(connection)
 
         # use settings.WSGI_APPLICATION or fallback to default Django WSGI app
         from django.conf import settings
@@ -189,6 +187,9 @@ class DDPLauncher(object):
         for server in self.servers + [DDPLauncher.pgworker]:
             self.logger.debug('Stopping %s', server)
             server.stop()
+        # wait for all threads to stop.
+        gevent.joinall(self.threads + [DDPLauncher.pgworker])
+        self.threads = []
 
     def start(self):
         """Run PostgresGreenlet and web/debug servers."""
@@ -204,7 +205,12 @@ class DDPLauncher(object):
         self.print('=> Started PostgresGreenlet.')
         for server in self.servers:
             thread = gevent.spawn(server.serve_forever)
+            gevent.sleep()  # yield to thread in case it can't start
             self.threads.append(thread)
+            if thread.dead:
+                # thread died, stop everything and re-raise the exception.
+                self.stop()
+                thread.get()
             if isinstance(server, geventwebsocket.WebSocketServer):
                 self.print(
                     '=> App running at: %s://%s:%d/' % (
@@ -229,6 +235,7 @@ class DDPLauncher(object):
         self._stop_event.wait()
         # wait for all threads to stop.
         gevent.joinall(self.threads + [DDPLauncher.pgworker])
+        self.threads = []
 
 
 def addr(val, default_port=8000, defualt_host='localhost'):
