@@ -20,7 +20,7 @@ env:
   - TOXENV="pypy-django1.9"
 
 install:
-  - pip install tox coveralls
+  - pip install tox coveralls setuptools>=18.5
 
 script:
   - tox
