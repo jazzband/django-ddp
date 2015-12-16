@@ -28,7 +28,7 @@ settings.configure(
         'default': {
             'ENGINE': 'django.db.backends.postgresql_psycopg2',
             'NAME': os.environ.get('PGDATABASE', 'django_ddp_docs_project'),
-            'USER': os.environ.get('PGUSER', os.environ['LOGNAME']),
+            'USER': os.environ.get('PGUSER', os.environ['USER']),
             'PORT': int(os.environ.get('PGPORT', '0')) or None,
             'PASSWORD': os.environ.get('PGPASSWORD', '') or None,
             'HOST': os.environ.get('PGHOST', '') or None,
