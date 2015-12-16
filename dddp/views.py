@@ -16,18 +16,22 @@ import pybars
 
 
 # from https://www.xormedia.com/recursively-merge-dictionaries-in-python/
-def dict_merge(a, b):
-    '''recursively merges dict's. not just simple a['key'] = b['key'], if
-    both a and bhave a key who's value is a dict then dict_merge is called
-    on both values and the result stored in the returned dictionary.'''
-    if not isinstance(b, dict):
-        return b
-    result = deepcopy(a)
-    for k, v in b.iteritems():
-        if k in result and isinstance(result[k], dict):
-                result[k] = dict_merge(result[k], v)
+def dict_merge(lft, rgt):
+    """
+    Recursive dict merge.
+
+    Recursively merges dict's. not just simple lft['key'] = rgt['key'], if
+    both lft and rgt have a key who's value is a dict then dict_merge is
+    called on both values and the result stored in the returned dictionary.
+    """
+    if not isinstance(rgt, dict):
+        return rgt
+    result = deepcopy(lft)
+    for key, val in rgt.iteritems():
+        if key in result and isinstance(result[key], dict):
+            result[key] = dict_merge(result[key], val)
         else:
-            result[k] = deepcopy(v)
+            result[key] = deepcopy(val)
     return result
 
 
