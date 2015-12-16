@@ -15,6 +15,8 @@ develop
 * Fail on start if any child threads can't start (eg: port in use).
 * Add missing versions and dates to the change log, and note on Semantic 
   Versioning.
+* Emit `django.core.signals.request_finished` to close DB connection and 
+  yield to other greenlets between processing messages from WebSocket.
 * Back to universal wheels, thanks to PEP-0496 environment markers.
 * Fix for #23 (Python 3 compatibility).
 * Set `application_name` on PostgreSQL async connection.
