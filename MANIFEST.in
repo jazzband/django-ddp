@@ -7,7 +7,10 @@ include .gitignore
 include Makefile
 exclude tox.ini
 graft dddp/test/meteor_todos
-graft dddp/test/build
-prune docs
+prune dddp/test/build
+prune dddp/test/meteor_todos/.meteor/local
+graft docs
+prune docs/_build
+prune docs/node_modules
 exclude .travis.yml.sh
 exclude .travis.yml
