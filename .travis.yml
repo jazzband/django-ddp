@@ -20,6 +20,7 @@ env:
 
 matrix:
   exclude:
+    # Django 1.9 dropped support for Python 3.3
     - python: "3.3"
       env: DJANGO="1.9"
 
@@ -39,8 +40,8 @@ install:
   - [[ $TRAVIS_PYTHON_VERSION == "pypy3" ]] && PYENV="pypy3"
 
 before_script:
-  - psql -c "create database ${PGDATABASE};"
   - env | sort
+  - psql -c "create database ${PGDATABASE};"
 
 script:
   - PATH="$HOME/.meteor:$PATH" tox -vvvv -e ${PYENV}-django${DJANGO}
