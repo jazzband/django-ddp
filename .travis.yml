@@ -38,7 +38,7 @@ install:
 
 before_script:
   - env | sort
-  - psql -c "create database ${PGDATABASE};"
+  - psql -c "create database ${PGDATABASE};" postgres
 
 script:
   - PATH="$HOME/.meteor:$PATH" tox -vvvv -e $( echo $TRAVIS_PYTHON_VERSION | sed -e 's/^2\./py2/' -e 's/^3\./py3/' )-django${DJANGO}
