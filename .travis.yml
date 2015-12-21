@@ -14,11 +14,12 @@ python:
   - "pypy3"
 
 env:
+  global:
+    - PGDATABASE="django_ddp_test_project"
+    - PGUSER="postgres"
   matrix:
     - DJANGO="1.8"
     - DJANGO="1.9"
-    - PGDATABASE="django_ddp_test_project"
-    - PGUSER="postgres"
 
 # Django 1.9 dropped support for Python 3.3
 matrix:
