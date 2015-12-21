@@ -35,19 +35,13 @@ before_install:
 
 install:
   - pip install -U tox coveralls setuptools
-  - test "$TRAVIS_PYTHON_VERSION" == "2.7" && PYENV="py27"
-  - test "$TRAVIS_PYTHON_VERSION" == "3.3" && PYENV="py33"
-  - test "$TRAVIS_PYTHON_VERSION" == "3.4" && PYENV="py34"
-  - test "$TRAVIS_PYTHON_VERSION" == "3.5" && PYENV="py35"
-  - test "$TRAVIS_PYTHON_VERSION" == "pypy" && PYENV="pypy"
-  - test "$TRAVIS_PYTHON_VERSION" == "pypy3" && PYENV="pypy3"
 
 before_script:
   - env | sort
   - psql -c "create database ${PGDATABASE};"
 
 script:
-  - PATH="$HOME/.meteor:$PATH" tox -vvvv -e ${PYENV}-django${DJANGO}
+  - PATH="$HOME/.meteor:$PATH" tox -vvvv -e $( echo $TRAVIS_PYTHON_VERSION | sed -e 's/^2\./py2/' -e 's/^3\./py3/' )-django${DJANGO}
 
 after_success:
   coveralls
