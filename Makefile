@@ -52,4 +52,5 @@ upload-docs: docs/_build/
 
 .travis.yml.ok: .travis.yml
 	@travis --version > "$@" || { echo 'Install travis command line client?'; exit 1; }
+	sha1sum "$<" >> "$@"
 	travis lint --exit-code | tee -a "$@"
