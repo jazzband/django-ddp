@@ -35,12 +35,12 @@ before_install:
 
 install:
   - pip install -U tox coveralls setuptools
-  - test "$TRAVIS_PYTHON_VERSION" == "2.7" && PYENV="py27"'
-  - test "$TRAVIS_PYTHON_VERSION" == "3.3" && PYENV="py33"'
-  - test "$TRAVIS_PYTHON_VERSION" == "3.4" && PYENV="py34"'
-  - test "$TRAVIS_PYTHON_VERSION" == "3.5" && PYENV="py35"'
-  - test "$TRAVIS_PYTHON_VERSION" == "pypy" && PYENV="pypy"'
-  - test "$TRAVIS_PYTHON_VERSION" == "pypy3" && PYENV="pypy3"'
+  - test "$TRAVIS_PYTHON_VERSION" == "2.7" && PYENV="py27"
+  - test "$TRAVIS_PYTHON_VERSION" == "3.3" && PYENV="py33"
+  - test "$TRAVIS_PYTHON_VERSION" == "3.4" && PYENV="py34"
+  - test "$TRAVIS_PYTHON_VERSION" == "3.5" && PYENV="py35"
+  - test "$TRAVIS_PYTHON_VERSION" == "pypy" && PYENV="pypy"
+  - test "$TRAVIS_PYTHON_VERSION" == "pypy3" && PYENV="pypy3"
 
 before_script:
   - env | sort
