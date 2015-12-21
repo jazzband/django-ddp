@@ -228,8 +228,12 @@ class AleaIdField(models.CharField):
     def get_seeded_value(self, instance):
         """Generate a syncronised value."""
         # Django model._meta is public API -> pylint: disable=W0212
+        if hasattr(instance, "meteor_collection"):
+            name = instance.meteor_collection
+        else:
+            name = instance._meta
         return meteor_random_id(
-            '/collection/%s' % instance._meta, self.max_length,
+            '/collection/%s' % name, self.max_length,
         )
 
     def get_pk_value_on_save(self, instance):
