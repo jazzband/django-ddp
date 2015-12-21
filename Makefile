@@ -8,7 +8,7 @@ WHEEL := dist/$(subst -,_,${NAME})-${VERSION}-py2.py3-none-any.whl
 
 .INTERMEDIATE: dist.intermediate docs
 
-all: .travis.yml docs dist
+all: .travis.yml.ok docs dist
 
 test:
 	tox --skip-missing-interpreters -vvv
@@ -50,5 +50,6 @@ upload-pypi: ${SDIST} ${WHEEL}
 upload-docs: docs/_build/
 	python setup.py upload_sphinx --upload-dir="$<html"
 
-.travis.yml: tox.ini .travis.yml.sh
-	sh .travis.yml.sh > "$@"
+.travis.yml.ok: .travis.yml
+	@travis --version > "$@" || { echo 'Install travis command line client?'; exit 1; }
+	travis lint --exit-code | tee -a "$@"
