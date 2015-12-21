@@ -1,12 +1,18 @@
 #!/usr/bin/env python
 """Django/PostgreSQL implementation of the Meteor server."""
 
+# stdlib
 import os.path
-import setuptools
+import posixpath  # all path specs in this file are UNIX-style paths
+import shutil
 import subprocess
 from distutils import log
 from distutils.version import StrictVersion
-from distutils.command.build import build
+import setuptools.command.build_py
+import setuptools.command.build_ext
+
+# pypi
+import setuptools
 
 # setuptools 18.5 introduces support for the `platform_python_implementation`
 # environment marker: https://github.com/jaraco/setuptools/pull/28
@@ -15,28 +21,128 @@ __requires__ = 'setuptools>=18.5'
 assert StrictVersion(setuptools.__version__) >= StrictVersion('18.5'), \
     'Installation from source requires setuptools>=18.5.'
 
+SETUP_DIR = os.path.dirname(__file__)
 
-class Build(build):
 
-    """Build all files of a package."""
+class build_meteor(setuptools.command.build_py.build_py):
+
+    """Build a Meteor project."""
+
+    user_options = [
+        ('meteor=', None, 'path to `meteor` executable (default: meteor)'),
+        ('meteor-debug', None, 'meteor build with `--debug`'),
+        ('no-prune-npm', None, "don't prune meteor npm build directories"),
+        ('build-lib', 'd', 'directory to "build" (copy) to'),
+    ]
+
+    negative_opt = []
+
+    meteor = None
+    meteor_debug = None
+    build_lib = None
+    package_dir = None
+    meteor_builds = None
+    no_prune_npm = None
+    inplace = None
+
+    def initialize_options(self):
+        """Set command option defaults."""
+        setuptools.command.build_py.build_py.initialize_options(self)
+        self.meteor = 'meteor'
+        self.meteor_debug = False
+        self.build_lib = None
+        self.package_dir = None
+        self.meteor_builds = []
+        self.no_prune_npm = None
+        self.inplace = True
+
+    def finalize_options(self):
+        """Update command options."""
+        # Get all the information we need to install pure Python modules
+        # from the umbrella 'install' command -- build (source) directory,
+        # install (target) directory, and whether to compile .py files.
+        self.set_undefined_options(
+            'build',
+            ('build_lib', 'build_lib'),
+        )
+        self.set_undefined_options(
+            'build_py',
+            ('package_dir', 'package_dir'),
+        )
+        setuptools.command.build_py.build_py.finalize_options(self)
+
+    @staticmethod
+    def has_meteor_builds(distribution):
+        """Returns `True` if distribution has meteor projects to be built."""
+        return bool(
+            distribution.command_options['build_meteor']['meteor_builds']
+        )
+
+    def get_package_dir(self, package):
+        res = setuptools.command.build_py.orig.build_py.get_package_dir(
+            self, package,
+        )
+        if self.distribution.src_root is not None:
+            return os.path.join(self.distribution.src_root, res)
+        return res
 
     def run(self):
-        """Build our package."""
-        cmdline = [
-            'meteor',
-            'build',
-            '--directory',
-            '../build',
-        ]
-        meteor_dir = os.path.join(
-            os.path.dirname(__file__),
-            'dddp',
-            'test',
-            'meteor_todos',
+        """Peform build."""
+        for (package, source, target, extra_args) in self.meteor_builds:
+            src_dir = self.get_package_dir(package)
+            # convert UNIX-style paths to directory names
+            project_dir = self.path_to_dir(src_dir, source)
+            target_dir = self.path_to_dir(src_dir, target)
+            output_dir = self.path_to_dir(
+                os.path.abspath(SETUP_DIR if self.inplace else self.build_lib),
+                target_dir,
+            )
+            # construct command line.
+            cmdline = [self.meteor, 'build', '--directory', output_dir]
+            no_prune_npm = self.no_prune_npm
+            if extra_args[:1] == ['--no-prune-npm']:
+                no_prune_npm = True
+                extra_args[:1] = []
+            if self.meteor_debug and '--debug' not in cmdline:
+                cmdline.append('--debug')
+            cmdline.extend(extra_args)
+            # execute command
+            log.info(
+                'building meteor app %r (%s)', project_dir, ' '.join(cmdline),
+            )
+            subprocess.check_call(cmdline, cwd=project_dir)
+            if not no_prune_npm:
+                # django-ddp doesn't use bundle/programs/server/npm cruft
+                npm_build_dir = os.path.join(
+                    output_dir, 'bundle', 'programs', 'server', 'npm',
+                )
+                log.info('pruning meteor npm build %r', npm_build_dir)
+                shutil.rmtree(npm_build_dir)
+
+    @staticmethod
+    def path_to_dir(*path_args):
+        """Convert a UNIX-style path into platform specific directory spec."""
+        return os.path.join(
+            *list(path_args[:-1]) + path_args[-1].split(posixpath.sep)
         )
-        log.info('Building meteor app %r (%s)', meteor_dir, ' '.join(cmdline))
-        subprocess.check_call(cmdline, cwd=meteor_dir)
-        return build.run(self)
+
+
+class build_py(setuptools.command.build_py.build_py):
+
+    def run(self):
+        if build_meteor.has_meteor_builds(self.distribution):
+            self.reinitialize_command('build_meteor', inplace=False)
+            self.run_command('build_meteor')
+        return setuptools.command.build_py.build_py.run(self)
+
+
+class build_ext(setuptools.command.build_ext.build_ext):
+
+    def run(self):
+        if build_meteor.has_meteor_builds(self.distribution):
+            self.reinitialize_command('build_meteor', inplace=True)
+            self.run_command('build_meteor')
+        return setuptools.command.build_ext.build_ext.run(self)
 
 
 CLASSIFIERS = [
@@ -154,6 +260,18 @@ setuptools.setup(
         'requests',
     ],
     cmdclass={
-        'build': Build,
+        'build_ext': build_ext,
+        'build_py': build_py,
+        'build_meteor': build_meteor,
+    },
+    options={
+        'bdist_wheel': {
+            'universal': '1',
+        },
+        'build_meteor': {
+            'meteor_builds': [
+                ('dddp.test', 'meteor_todos', 'build', []),
+            ],
+        },
     },
 )
