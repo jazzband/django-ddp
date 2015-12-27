@@ -255,7 +255,7 @@ setuptools.setup(
         ],
     },
     classifiers=CLASSIFIERS,
-    test_suite='dddp.test.run_tests',
+    test_suite='dddp.test.manage.run_tests',
     tests_require=[
         'requests',
         'websocket_client',

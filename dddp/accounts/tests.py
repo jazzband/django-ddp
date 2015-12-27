@@ -1,8 +1,14 @@
+"""Django DDP Accounts test suite."""
+from __future__ import unicode_literals
+
+import sys
 from dddp import tests
 
 
 class AccountsTestCase(tests.DDPServerTestCase):
 
+    # gevent-websocket doesn't work with Python 3 yet
+    @tests.expected_failure_if(sys.version_info.major == 3)
     def test_login_no_accounts(self):
         sockjs = self.server.sockjs('/sockjs/1/a/websocket')
 

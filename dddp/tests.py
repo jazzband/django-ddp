@@ -5,6 +5,7 @@ import doctest
 import errno
 import os
 import socket
+import sys
 import unittest
 import django.test
 import ejson
@@ -19,6 +20,18 @@ os.environ['DJANGO_SETTINGS_MODULE'] = 'dddp.test.test_project.settings'
 DOCTEST_MODULES = [
     dddp.alea,
 ]
+
+
+def expected_failure_if(condition):
+    """Decorator to conditionally wrap func in unittest.expectedFailure."""
+    if callable(condition):
+        condition = condition()
+    if condition:
+        # condition is True, expect failure.
+        return unittest.expectedFailure
+    else:
+        # condition is False, expect success.
+        return lambda func: func
 
 
 class WebSocketClient(object):
@@ -198,6 +211,8 @@ class HttpTestCase(DDPServerTestCase):
 
     """Test that server launches and handles HTTP requests."""
 
+    # gevent-websocket doesn't work with Python 3 yet
+    @expected_failure_if(sys.version_info.major == 3)
     def test_get(self):
         """Perform HTTP GET."""
         import requests
@@ -209,6 +224,8 @@ class WebSocketTestCase(DDPServerTestCase):
 
     """Test that server launches and handles WebSocket connections."""
 
+    # gevent-websocket doesn't work with Python 3 yet
+    @expected_failure_if(sys.version_info.major == 3)
     def test_sockjs_connect_ping(self):
         """SockJS connect."""
         sockjs = self.server.sockjs('/sockjs/1/a/websocket')
@@ -244,6 +261,8 @@ class WebSocketTestCase(DDPServerTestCase):
 
         sockjs.close()
 
+    # gevent-websocket doesn't work with Python 3 yet
+    @expected_failure_if(sys.version_info.major == 3)
     def test_call_missing_arguments(self):
         """Connect and login without any arguments."""
         sockjs = self.server.sockjs('/sockjs/1/a/websocket')
@@ -284,6 +303,8 @@ class WebSocketTestCase(DDPServerTestCase):
 
         sockjs.close()
 
+    # gevent-websocket doesn't work with Python 3 yet
+    @expected_failure_if(sys.version_info.major == 3)
     def test_call_extra_arguments(self):
         """Connect and login with extra arguments."""
         with self.server.sockjs('/sockjs/1/a/websocket') as sockjs:
