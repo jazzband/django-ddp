@@ -228,9 +228,9 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         # dispatch to handler
         try:
             handler(**kwargs)
-        except Exception as err:  # print stack trace --> pylint: disable=W0703
-            traceback.print_exc()
+        except Exception as err:  # re-raise err --> pylint: disable=W0703
             self.error(500, 'Internal server error', err)
+            raise
 
     def send(self, data, tx_id=None):
         """Send `data` (raw string or EJSON payload) to WebSocket client."""

@@ -1,3 +1,13 @@
-from django.shortcuts import render
+import os.path
 
-# Create your views here.
+from dddp.views import MeteorView
+import dddp.test
+
+
+class MeteorTodos(MeteorView):
+    """Meteor Todos."""
+
+    json_path = os.path.join(
+        os.path.dirname(dddp.test.__file__),
+        'build', 'bundle', 'star.json'
+    )

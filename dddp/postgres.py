@@ -77,7 +77,7 @@ class PostgresGreenlet(gevent.Greenlet):
                     gevent.select.select,
                     [conn], [], [], timeout=None,
                 )
-                self.select_greenlet.join()
+                self.select_greenlet.get()
             except gevent.GreenletExit:
                 self._stop_event.set()
             finally:
@@ -93,6 +93,8 @@ class PostgresGreenlet(gevent.Greenlet):
         self._stop_event.set()
         if self.select_greenlet is not None:
             self.select_greenlet.kill()
+            self.select_greenlet.get()
+            gevent.sleep()
 
     def poll(self, conn):
         """Poll DB socket and process async tasks."""
