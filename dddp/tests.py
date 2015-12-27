@@ -10,6 +10,7 @@ import unittest
 import django.test
 import ejson
 import gevent
+import dddp
 import dddp.alea
 from dddp.main import DDPLauncher
 # pylint: disable=E0611, F0401
@@ -45,6 +46,11 @@ class WebSocketClient(object):
         import websocket
         self.websocket = websocket.create_connection(*args, **kwargs)
         self.call_seq = 0
+        self._prng = dddp.RandomStreams()
+
+    def set_seed(self, seed):
+        """Set PRNG seed value."""
+        self._prng.random_seed = seed
 
     def send(self, **msg):
         """Send message."""
@@ -69,6 +75,11 @@ class WebSocketClient(object):
         """Exit context block, close connection."""
         self.websocket.close()
 
+    # Alea PRNG (seeded)
+    def meteor_random_id(self, name=None, length=17):
+        """Return seeded PRNG."""
+        return self._prng[name].random_string(length, dddp.METEOR_ID_CHARS)
+
     # DDP
     def next_id(self):
         """Return next `id` from sequence."""
@@ -91,6 +102,16 @@ class WebSocketClient(object):
         id_ = self.next_id()
         self.send(msg='method', method=method, params=args, id=id_)
         return id_
+
+    def sub(self, name, *params):
+        """Subscribe to a named publication."""
+        sub_id = self.meteor_random_id()
+        self.send(msg='sub', id=sub_id, name=name, params=params)
+        return sub_id
+
+    def unsub(self, sub_id):
+        """Unsubscribe from a publication by sub_id."""
+        self.send(msg='unsub', id=sub_id)
 
 
 class SockJSClient(WebSocketClient):
@@ -258,6 +279,42 @@ class WebSocketTestCase(DDPServerTestCase):
         sockjs.ping(id_)
         msgs = sockjs.recv()
         self.assertEqual(msgs, [{'msg': 'pong', 'id': id_}])
+
+        sockjs.close()
+
+    # gevent-websocket doesn't work with Python 3 yet
+    @expected_failure_if(sys.version_info.major == 3)
+    def test_sockjs_connect_sub_unsub(self):
+        """SockJS connect."""
+        sockjs = self.server.sockjs('/sockjs/1/a/websocket')
+
+        resp = sockjs.websocket.recv()
+        self.assertEqual(resp, 'o')
+
+        msgs = sockjs.recv()
+        self.assertEqual(
+            msgs, [
+                {'server_id': '0'},
+            ],
+        )
+
+        sockjs.connect('1', 'pre2', 'pre1')
+        msgs = sockjs.recv()
+        self.assertEqual(
+            msgs, [
+                {'msg': 'connected', 'session': msgs[0].get('session', None)},
+            ],
+        )
+
+        # subscribe to `meteor_autoupdate_clientVersions` publication
+        sub_id = sockjs.sub('meteor_autoupdate_clientVersions')
+        msgs = sockjs.recv()
+        self.assertEqual(msgs, [{'msg': 'ready', 'subs': [sub_id]}])
+
+        # unsubscribe from publication
+        sockjs.unsub(sub_id)
+        msgs = sockjs.recv()
+        self.assertEqual(msgs, [{'msg': 'nosub', 'id': sub_id}])
 
         sockjs.close()
 
