@@ -12,5 +12,5 @@ prune dddp/test/meteor_todos/.meteor/local
 graft docs
 prune docs/_build
 prune docs/node_modules
-exclude .travis.yml.sh
+exclude .travis.yml.ok
 exclude .travis.yml
