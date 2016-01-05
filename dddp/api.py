@@ -8,17 +8,15 @@ import traceback
 import uuid
 
 # requirements
-import dbarray
 from django.conf import settings
 import django.contrib.postgres.fields
 from django.db import connections, router, transaction
-from django.db.models import aggregates, Q
+from django.db.models import Q
 try:
     # pylint: disable=E0611
     from django.db.models.expressions import ExpressionNode
 except ImportError:
     from django.db.models import Expression as ExpressionNode
-from django.db.models.sql import aggregates as sql_aggregates
 from django.utils.encoding import force_text
 from django.utils.module_loading import import_string
 from django.db import DatabaseError
@@ -43,55 +41,16 @@ API_ENDPOINT_DECORATORS = [
 
 XMIN = {'select': {'xmin': "'xmin'"}}
 
+# Only do this if < django1.9?
 
-class Sql(object):
+if django.VERSION < (1, 9):
+    from django.db.models import aggregates
 
-    """Extensions to django.db.models.sql.aggregates module."""
-
-    class Array(sql_aggregates.Aggregate):
-
-        """Array SQL aggregate extension."""
-
-        lookup_name = 'array'
-        sql_function = 'array_agg'
-
-sql_aggregates.Array = Sql.Array
-
-
-# pylint: disable=W0223
-class Array(aggregates.Aggregate):
-
-    """Array aggregate function."""
-
-    func = 'ARRAY'
-    function = 'array_agg'
-    name = 'Array'
-
-    def add_to_query(self, query, alias, col, source, is_summary):
-        """Override source field internal type so the raw array is returned."""
-        @six.add_metaclass(dbarray.ArrayFieldMetaclass)
-        class ArrayField(dbarray.ArrayFieldBase, source.__class__):
-
-            """ArrayField for override."""
-
-            @staticmethod
-            def get_internal_type():
-                """Return ficticious type so Django doesn't cast as int."""
-                return 'ArrayType'
-
-        new_source = ArrayField()
-        try:
-            super(Array, self).add_to_query(
-                query, alias, col, new_source, is_summary,
-            )
-        except AttributeError:
-            query.aggregates[alias] = new_source
-
-    def convert_value(self, value, expression, connection, context):
-        """Convert value from format returned by DB driver to Python value."""
-        if not value:
-            return []
-        return value
+    # pylint: disable=W0223
+    class ArrayAgg(aggregates.Aggregate):
+        function = 'ARRAY_AGG'
+else:
+    from django.contrib.postgres.aggregates import ArrayAgg
 
 
 def api_endpoint(path_or_func=None, decorate=True):
@@ -329,7 +288,7 @@ class Collection(APIMixin):
             if isinstance(user_rels, basestring):
                 user_rels = [user_rels]
             user_rel_map = {
-                '_user_rel_%d' % index: Array(user_rel)
+                '_user_rel_%d' % index: ArrayAgg(user_rel)
                 for index, user_rel
                 in enumerate(user_rels)
             }
