@@ -207,7 +207,6 @@ setuptools.setup(
     ],
     install_requires=[
         'Django>=1.8',
-        'django-dbarray>=0.2',
         'meteor-ejson>=1.0',
         'psycogreen>=1.0',
         'pybars3>=0.9.1',
