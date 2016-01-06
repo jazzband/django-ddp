@@ -4,7 +4,7 @@ import doctest
 import os
 import unittest
 
-os.environ['DJANGO_SETTINGS_MODULE'] = 'dddp.test.test_project.settings'
+os.environ['DJANGO_SETTINGS_MODULE'] = 'tests.test_project.settings'
 
 DOCTEST_MODULES = [
 ]

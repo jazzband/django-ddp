@@ -6,7 +6,8 @@ import sys
 import dddp
 dddp.greenify()
 
-os.environ['DJANGO_SETTINGS_MODULE'] = 'dddp.test.test_project.settings'
+os.environ['DJANGO_SETTINGS_MODULE'] = 'test_project.settings'
+sys.path.insert(0, os.path.dirname(__file__))
 
 
 def run_tests():

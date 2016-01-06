@@ -19,7 +19,7 @@ clean-docs:
 	$(MAKE) -C docs/ clean
 
 clean-dist:
-	rm -rf "${SDIST}" "${WHEEL}" dddp/test/build/ dddp/test/meteor_todos/.meteor/local/
+	rm -rf "${SDIST}" "${WHEEL}" tests/build/ tests/meteor_todos/.meteor/local/
 
 clean-pyc:
 	find . -type f -name \*.pyc -print0 | xargs -0 rm -f

@@ -1,13 +1,14 @@
+from __future__ import absolute_import
 import os.path
 
 from dddp.views import MeteorView
-import dddp.test
+import tests
 
 
 class MeteorTodos(MeteorView):
     """Meteor Todos."""
 
     json_path = os.path.join(
-        os.path.dirname(dddp.test.__file__),
+        os.path.dirname(tests.__file__),
         'build', 'bundle', 'star.json'
     )

@@ -3,13 +3,13 @@
 from django.conf import settings
 from django.conf.urls import patterns, include, url
 from django.contrib import admin
-from dddp.test.django_todos.views import MeteorTodos
+from django_todos.views import MeteorTodos
 
 
 urlpatterns = patterns(
     '',
     # Examples:
-    # url(r'^$', 'dddp.test.test_project.views.home', name='home'),
+    # url(r'^$', 'test_project.views.home', name='home'),
     # url(r'^blog/', include('blog.urls')),
 
     url(r'^admin/', include(admin.site.urls)),

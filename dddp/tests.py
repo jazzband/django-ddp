@@ -16,7 +16,7 @@ from dddp.main import DDPLauncher
 # pylint: disable=E0611, F0401
 from six.moves.urllib_parse import urljoin
 
-os.environ['DJANGO_SETTINGS_MODULE'] = 'dddp.test.test_project.settings'
+os.environ['DJANGO_SETTINGS_MODULE'] = 'test_project.settings'
 
 DOCTEST_MODULES = [
     dddp.alea,

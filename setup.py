@@ -198,9 +198,9 @@ setuptools.setup(
         'liveupdate live-update livequery live-query'
     ],
     license='MIT',
-    packages=setuptools.find_packages(),
+    packages=setuptools.find_packages(exclude=['tests*']),
     include_package_data=True,  # install data files specified in MANIFEST.in
-    zip_safe=False,  # TODO: Move dddp.test into it's own package.
+    zip_safe=True,
     setup_requires=[
         # packages required to run the setup script
         __requires__,
@@ -254,7 +254,7 @@ setuptools.setup(
         ],
     },
     classifiers=CLASSIFIERS,
-    test_suite='dddp.test.manage.run_tests',
+    test_suite='tests.manage.run_tests',
     tests_require=[
         'requests',
         'websocket_client',
@@ -270,7 +270,7 @@ setuptools.setup(
         },
         'build_meteor': {
             'meteor_builds': [
-                ('dddp.test', 'meteor_todos', 'build', []),
+                ('tests', 'meteor_todos', 'build', []),
             ],
         },
     },
