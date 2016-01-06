@@ -127,15 +127,6 @@ class build_meteor(setuptools.command.build_py.build_py):
         )
 
 
-class build_py(setuptools.command.build_py.build_py):
-
-    def run(self):
-        if build_meteor.has_meteor_builds(self.distribution):
-            self.reinitialize_command('build_meteor', inplace=False)
-            self.run_command('build_meteor')
-        return setuptools.command.build_py.build_py.run(self)
-
-
 class build_ext(setuptools.command.build_ext.build_ext):
 
     def run(self):
@@ -261,7 +252,6 @@ setuptools.setup(
     ],
     cmdclass={
         'build_ext': build_ext,
-        'build_py': build_py,
         'build_meteor': build_meteor,
     },
     options={
