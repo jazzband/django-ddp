@@ -21,12 +21,12 @@ from django.dispatch import Signal
 from django.utils import timezone
 
 from dddp import (
-    THREAD_LOCAL_FACTORIES, THREAD_LOCAL as this, ADDED, REMOVED,
+    THREAD_LOCAL_FACTORIES, this, MeteorError,
+    ADDED, REMOVED,
     meteor_random_id,
 )
 from dddp.models import get_meteor_id, get_object, Subscription
 from dddp.api import API, APIMixin, api_endpoint, Collection, Publication
-from dddp.websocket import MeteorError
 
 
 # pylint dones't like lower case attribute names on modules, but it's the normal
@@ -190,7 +190,7 @@ class Users(Collection):
             if key == prefixed('name'):
                 result['full_name'] = val
             else:
-                raise ValueError('Bad profile key: %r' % key)
+                raise MeteorError(400, 'Bad profile key: %r' % key)
         return result
 
     @api_endpoint
@@ -384,7 +384,7 @@ class Auth(APIMixin):
             # malicious MITM.  Also as no salt is used with hashing, the
             # passwords are vulnerable to rainbow-table lookups anyway.
             #
-            # If you're doing security, do it right from the very outset.  Fors
+            # If you're doing security, do it right from the very outset.  For
             # web services that means using SSL and not relying on half-baked
             # security concepts put together by people with no security
             # background.
@@ -393,9 +393,10 @@ class Auth(APIMixin):
             # until upstream developers see the light and drop the password
             # hashing mis-feature.
             raise MeteorError(
-                400,
-                "Outmoded password hashing, run "
-                "`meteor add tysonclugg:accounts-secure` to fix.",
+                426,
+                "Outmoded password hashing: "
+                "https://github.com/meteor/meteor/issues/4363",
+                upgrade='meteor add tysonclugg:accounts-secure',
             )
 
     @api_endpoint('createUser')
@@ -407,7 +408,9 @@ class Auth(APIMixin):
             params=params,
         )
         if len(receivers) == 0:
-            raise MeteorError(501, 'Handler for `create_user` not registered.')
+            raise NotImplementedError(
+                'Handler for `create_user` not registered.'
+            )
         user = receivers[0][1]
         user = auth.authenticate(
             username=user.get_username(), password=params['password'],

@@ -26,7 +26,7 @@ class AccountsTestCase(tests.DDPServerTestCase):
         msgs = sockjs.recv()
         self.assertEqual(
             msgs, [
-                {'msg': 'connected', 'session': msgs[0].get('session', None)},
+                {'msg': 'connected', 'session': msgs[0]['session']},
             ],
         )
 
@@ -37,12 +37,10 @@ class AccountsTestCase(tests.DDPServerTestCase):
         self.assertEqual(
             msgs, [
                 {
-                    'msg': 'result',
+                    'msg': 'result', 'id': id_,
                     'error': {
-                        'error': 500,
-                        'reason': "(403, 'Authentication failed.')",
+                        'error': 403, 'reason': 'Authentication failed.',
                     },
-                    'id': id_,
                 },
             ],
         )

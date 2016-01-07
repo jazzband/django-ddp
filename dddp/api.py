@@ -4,7 +4,7 @@ from __future__ import absolute_import, unicode_literals, print_function
 # standard library
 import collections
 from copy import deepcopy
-import traceback
+import inspect
 import uuid
 
 # requirements
@@ -25,9 +25,7 @@ import ejson
 import six
 
 # django-ddp
-from dddp import (
-    AlreadyRegistered, THREAD_LOCAL as this, ADDED, CHANGED, REMOVED,
-)
+from dddp import AlreadyRegistered, this, ADDED, CHANGED, REMOVED, MeteorError
 from dddp.models import (
     AleaIdField, Connection, Subscription, get_meteor_id, get_meteor_ids,
 )
@@ -124,7 +122,7 @@ class APIMeta(type):
 
     """DDP API metaclass."""
 
-    def __new__(mcs, name, bases, attrs):
+    def __new__(cls, name, bases, attrs):
         """Create a new APIMixin class."""
         attrs['name'] = attrs.pop('name', None) or name
         name_format = attrs.get('name_format', None)
@@ -135,7 +133,7 @@ class APIMeta(type):
             pass
         elif api_path_prefix_format is not None:
             attrs['api_path_prefix'] = api_path_prefix_format.format(**attrs)
-        return super(APIMeta, mcs).__new__(mcs, name, bases, attrs)
+        return super(APIMeta, cls).__new__(cls, name, bases, attrs)
 
 
 class APIMixin(object):
@@ -636,19 +634,7 @@ class DDP(APIMixin):
     @api_endpoint
     def sub(self, id_, name, *params):
         """Create subscription, send matched objects that haven't been sent."""
-        try:
-            return self.do_sub(id_, name, False, *params)
-        except Exception as err:
-            this.send({
-                'msg': 'nosub',
-                'id': id_,
-                'error': {
-                    'error': 500,
-                    'errorType': 'Meteor.Error',
-                    'message': '%s' % err,
-                    'reason': 'Subscription failed',
-                },
-            })
+        return self.do_sub(id_, name, False, *params)
 
     @transaction.atomic
     def do_sub(self, id_, name, silent, *params):
@@ -657,16 +643,7 @@ class DDP(APIMixin):
             pub = self.get_pub_by_name(name)
         except KeyError:
             if not silent:
-                this.send({
-                    'msg': 'nosub',
-                    'id': id_,
-                    'error': {
-                        'error': 404,
-                        'errorType': 'Meteor.Error',
-                        'message': 'Subscription not found [404]',
-                        'reason': 'Subscription not found',
-                    },
-                })
+                raise MeteorError(404, 'Subscription not found')
             return
         sub, created = Subscription.objects.get_or_create(
             connection_id=this.ws.connection.pk,
@@ -747,41 +724,16 @@ class DDP(APIMixin):
         try:
             handler = self.api_path_map()[method]
         except KeyError:
-            print('Unknown method: %s %r' % (method, params))
-            this.send({
-                'msg': 'result',
-                'id': id_,
-                'error': {
-                    'error': 404,
-                    'errorType': 'Meteor.Error',
-                    'message': 'Unknown method: %s %r' % (method, params),
-                    'reason': 'Method not found',
-                },
-            })
-            return
-        params_repr = repr(params)
+            raise MeteorError(404, 'Method not found', method)
         try:
-            result = handler(*params)
-            msg = {'msg': 'result', 'id': id_}
-            if result is not None:
-                msg['result'] = result
-            this.send(msg)
-        except Exception as err:  # log err+stack trace -> pylint: disable=W0703
-            details = traceback.format_exc()
-            print(id_, method, params_repr)
-            print(details)
-            this.ws.logger.error(err, exc_info=True)
-            msg = {
-                'msg': 'result',
-                'id': id_,
-                'error': {
-                    'error': 500,
-                    'reason': str(err),
-                },
-            }
-            if settings.DEBUG:
-                msg['error']['details'] = details
-            this.send(msg)
+            inspect.getcallargs(handler, *params)
+        except TypeError as err:
+            raise MeteorError(400, '%s' % err)
+        result = handler(*params)
+        msg = {'msg': 'result', 'id': id_}
+        if result is not None:
+            msg['result'] = result
+        this.send(msg)
 
     def register(self, api_or_iterable):
         """Register an API endpoint."""
