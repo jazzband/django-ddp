@@ -2,13 +2,20 @@
 Django DDP
 ==========
 
-`Django DDP`_ is a Django_/PostgreSQL_ implementation of the Meteor DDP server, allowing Meteor_ to subscribe to changes on Django_ models.  Released under the MIT license.
+`Django DDP`_ is a Django_/PostgreSQL_ implementation of the Meteor DDP
+server,  allowing Meteor_ to subscribe to changes on Django_ models.
+Released under the MIT license.
 
 
 Requirements
 ------------
-You must be using PostgreSQL_ with psycopg2_ in your Django_ project for django-ddp to work.  There is no requirement on any asynchronous framework such as Reddis or crossbar.io as they are simply not needed given the asynchronous support provided by PostgreSQL_ with psycopg2_.
+You must be using PostgreSQL_ with psycopg2_ in your Django_ project
+for django-ddp to work.  There is no requirement on any asynchronous
+framework such as Redis or crossbar.io as they are simply not needed
+given the asynchronous support provided by PostgreSQL_ with psycopg2_.
 
+Since the test suite includes an example Meteor_ project, running that
+requires that Meteor_ is installed (and `meteor` is in your `PATH`).
 
 Installation
 ------------
@@ -19,7 +26,8 @@ Install the latest release from pypi (recommended):
 
     pip install django-ddp
 
-Clone and use development version direct from GitHub to test pre-release code (no GitHub account required):
+Clone and use development version direct from GitHub to test pre-release
+code (no GitHub account required):
 
 .. code:: sh
 
@@ -43,9 +51,15 @@ Overview and getting started
 
 Scalability
 -----------
-All database queries to support DDP events are done once by the server instance that has made changes via the Django ORM.  Django DDP multiplexes messages for active subscriptions, broadcasting an aggregated change message on channels specific to each Django model that has been published.
+All database queries to support DDP events are done once by the server
+instance that has made changes via the Django ORM.  Django DDP multiplexes
+messages for active subscriptions, broadcasting an aggregated change
+message on channels specific to each Django model that has been published.
 
-Peer servers subscribe to aggregate broadcast events which are de-multiplexed and dispatched to individual client connections.  No additional database queries are required for de-multiplexing or dispatch by peer servers.
+Peer servers subscribe to aggregate broadcast events which are
+de-multiplexed and dispatched to individual client connections.
+No additional database queries are required for de-multiplexing
+or dispatch by peer servers.
 
 
 Limitations
@@ -138,7 +152,7 @@ Start the Django DDP service:
 Using django-ddp as a secondary DDP connection (RAPID DEVELOPMENT)
 ------------------------------------------------------------------
 
-Running in this manner allows rapid development through use of the hot 
+Running in this manner allows rapid development through use of the hot
 code push features provided by Meteor.
 
 Connect your Meteor application to the Django DDP service:
@@ -165,13 +179,13 @@ Start Meteor (from within your meteor application directory):
 Using django-ddp as the primary DDP connection (RECOMMENDED)
 ------------------------------------------------------------
 
-If you'd prefer to not have two DDP connections (one to Meteor and one 
-to django-ddp) you can set the `DDP_DEFAULT_CONNECTION_URL` environment 
-variable to use the specified URL as the primary DDP connection in 
-Meteor.  When doing this, you won't need to use `DDP.connect(...)` or 
-specify `{connection: Django}` on your collections.  Running with 
-django-ddp as the primary connection is recommended, and indeed required 
-if you wish to use `dddp.accounts` to provide authentication using 
+If you'd prefer to not have two DDP connections (one to Meteor and one
+to django-ddp) you can set the `DDP_DEFAULT_CONNECTION_URL` environment
+variable to use the specified URL as the primary DDP connection in
+Meteor.  When doing this, you won't need to use `DDP.connect(...)` or
+specify `{connection: Django}` on your collections.  Running with
+django-ddp as the primary connection is recommended, and indeed required
+if you wish to use `dddp.accounts` to provide authentication using
 `django.contrib.auth` to your meteor app.
 
 .. code:: sh
@@ -182,7 +196,7 @@ if you wish to use `dddp.accounts` to provide authentication using
 Serving your Meteor applications from django-ddp
 ------------------------------------------------
 
-First, you will need to build your meteor app into a directory (examples 
+First, you will need to build your meteor app into a directory (examples
 below assume target directory named `myapp`):
 
 .. code:: sh
@@ -257,7 +271,7 @@ Contributors
 `Muhammed Thanish <https://github.com/mnmtanish>`_
     * Making the `DDP Test Suite <https://github.com/meteorhacks/ddptest>`_ available.
 
-This project is forever grateful for the love, support and respect given 
+This project is forever grateful for the love, support and respect given
 by the awesome team at `Common Code`_.
 
 .. _Django DDP: https://github.com/django-ddp/django-ddp

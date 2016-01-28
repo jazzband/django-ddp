@@ -1,5 +1,7 @@
+from __future__ import absolute_import, unicode_literals
+
 from dddp.api import API, Collection, Publication
-from dddp.test.django_todos import models
+from django_todos import models
 
 
 class Task(Collection):

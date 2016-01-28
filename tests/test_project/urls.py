@@ -1,22 +1,15 @@
 """Django DDP test project - URL configuraiton."""
-import os.path
 
 from django.conf import settings
 from django.conf.urls import patterns, include, url
 from django.contrib import admin
-from dddp.views import MeteorView
-import dddp.test
+from django_todos.views import MeteorTodos
 
-app = MeteorView.as_view(
-    json_path=os.path.join(
-        os.path.dirname(dddp.test.__file__),
-        'build', 'bundle', 'star.json'
-    ),
-)
 
-urlpatterns = patterns('',
+urlpatterns = patterns(
+    '',
     # Examples:
-    # url(r'^$', 'dddp.test.test_project.views.home', name='home'),
+    # url(r'^$', 'test_project.views.home', name='home'),
     # url(r'^blog/', include('blog.urls')),
 
     url(r'^admin/', include(admin.site.urls)),
@@ -29,5 +22,5 @@ urlpatterns = patterns('',
         },
     ),
     # all remaining URLs routed to Meteor app.
-    url(r'^(?P<path>.*)$', app),
+    url(r'^(?P<path>.*)$', MeteorTodos.as_view()),
 )

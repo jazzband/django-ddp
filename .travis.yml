@@ -5,25 +5,49 @@
 sudo: false
 
 language: python
+python:
+  - "2.7"
+  - "3.3"
+  - "3.4"
+  - "3.5"
+  - "pypy"
+  - "pypy3"
 
 env:
-  - TOXENV="py27-django1.8"
-  - TOXENV="py27-django1.9"
-  - TOXENV="py33-django1.8"
-  - TOXENV="py34-django1.8"
-  - TOXENV="py34-django1.9"
-  - TOXENV="py35-django1.8"
-  - TOXENV="py35-django1.9"
-  - TOXENV="pypy3-django1.8"
-  - TOXENV="pypy3-django1.9"
-  - TOXENV="pypy-django1.8"
-  - TOXENV="pypy-django1.9"
+  global:
+    - PGDATABASE="django_ddp_test_project"
+    - PGUSER="postgres"
+  matrix:
+    - DJANGO="1.8"
+    - DJANGO="1.9"
+
+# Django 1.9 dropped support for Python 3.3
+matrix:
+  exclude:
+    - python: "3.3"
+      env: DJANGO="1.9"
+  allow_failures:
+    - python: "3.3"
+    - python: "3.4"
+    - python: "3.5"
+    - python: "pypy"
+    - python: "pypy3"
+
+services:
+  - postgresql
+
+before_install:
+  - curl https://install.meteor.com/ | sh
 
 install:
-  - pip install tox coveralls
+  - pip install -U tox coveralls setuptools
+
+before_script:
+  - env | sort
+  - psql -c "create database ${PGDATABASE};" postgres
 
 script:
-  - tox
+  - PATH="$HOME/.meteor:$PATH" tox -vvvv -e $( echo $TRAVIS_PYTHON_VERSION | sed -e 's/^2\./py2/' -e 's/^3\./py3/' )-django${DJANGO}
 
 after_success:
   coveralls

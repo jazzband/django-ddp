@@ -21,7 +21,10 @@ class DjangoDDPConfig(AppConfig):
             raise ImproperlyConfigured('No databases configured.')
         for (alias, conf) in settings.DATABASES.items():
             engine = conf['ENGINE']
-            if engine != 'django.db.backends.postgresql_psycopg2':
+            if engine not in [
+                'django.db.backends.postgresql',
+                'django.db.backends.postgresql_psycopg2',
+            ]:
                 warnings.warn(
                     'Database %r uses unsupported %r engine.' % (
                         alias, engine,

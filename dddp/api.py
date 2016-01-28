@@ -4,21 +4,19 @@ from __future__ import absolute_import, unicode_literals, print_function
 # standard library
 import collections
 from copy import deepcopy
-import traceback
+import inspect
 import uuid
 
 # requirements
-import dbarray
 from django.conf import settings
 import django.contrib.postgres.fields
 from django.db import connections, router, transaction
-from django.db.models import aggregates, Q
+from django.db.models import Q
 try:
     # pylint: disable=E0611
     from django.db.models.expressions import ExpressionNode
 except ImportError:
     from django.db.models import Expression as ExpressionNode
-from django.db.models.sql import aggregates as sql_aggregates
 from django.utils.encoding import force_text
 from django.utils.module_loading import import_string
 from django.db import DatabaseError
@@ -27,9 +25,7 @@ import ejson
 import six
 
 # django-ddp
-from dddp import (
-    AlreadyRegistered, THREAD_LOCAL as this, ADDED, CHANGED, REMOVED,
-)
+from dddp import AlreadyRegistered, this, ADDED, CHANGED, REMOVED, MeteorError
 from dddp.models import (
     AleaIdField, Connection, Subscription, get_meteor_id, get_meteor_ids,
 )
@@ -43,55 +39,16 @@ API_ENDPOINT_DECORATORS = [
 
 XMIN = {'select': {'xmin': "'xmin'"}}
 
+# Only do this if < django1.9?
 
-class Sql(object):
+if django.VERSION < (1, 9):
+    from django.db.models import aggregates
 
-    """Extensions to django.db.models.sql.aggregates module."""
-
-    class Array(sql_aggregates.Aggregate):
-
-        """Array SQL aggregate extension."""
-
-        lookup_name = 'array'
-        sql_function = 'array_agg'
-
-sql_aggregates.Array = Sql.Array
-
-
-# pylint: disable=W0223
-class Array(aggregates.Aggregate):
-
-    """Array aggregate function."""
-
-    func = 'ARRAY'
-    function = 'array_agg'
-    name = 'Array'
-
-    def add_to_query(self, query, alias, col, source, is_summary):
-        """Override source field internal type so the raw array is returned."""
-        @six.add_metaclass(dbarray.ArrayFieldMetaclass)
-        class ArrayField(dbarray.ArrayFieldBase, source.__class__):
-
-            """ArrayField for override."""
-
-            @staticmethod
-            def get_internal_type():
-                """Return ficticious type so Django doesn't cast as int."""
-                return 'ArrayType'
-
-        new_source = ArrayField()
-        try:
-            super(Array, self).add_to_query(
-                query, alias, col, new_source, is_summary,
-            )
-        except AttributeError:
-            query.aggregates[alias] = new_source
-
-    def convert_value(self, value, expression, connection, context):
-        """Convert value from format returned by DB driver to Python value."""
-        if not value:
-            return []
-        return value
+    # pylint: disable=W0223
+    class ArrayAgg(aggregates.Aggregate):
+        function = 'ARRAY_AGG'
+else:
+    from django.contrib.postgres.aggregates import ArrayAgg
 
 
 def api_endpoint(path_or_func=None, decorate=True):
@@ -165,7 +122,7 @@ class APIMeta(type):
 
     """DDP API metaclass."""
 
-    def __new__(mcs, name, bases, attrs):
+    def __new__(cls, name, bases, attrs):
         """Create a new APIMixin class."""
         attrs['name'] = attrs.pop('name', None) or name
         name_format = attrs.get('name_format', None)
@@ -176,7 +133,7 @@ class APIMeta(type):
             pass
         elif api_path_prefix_format is not None:
             attrs['api_path_prefix'] = api_path_prefix_format.format(**attrs)
-        return super(APIMeta, mcs).__new__(mcs, name, bases, attrs)
+        return super(APIMeta, cls).__new__(cls, name, bases, attrs)
 
 
 class APIMixin(object):
@@ -329,7 +286,7 @@ class Collection(APIMixin):
             if isinstance(user_rels, basestring):
                 user_rels = [user_rels]
             user_rel_map = {
-                '_user_rel_%d' % index: Array(user_rel)
+                '_user_rel_%d' % index: ArrayAgg(user_rel)
                 for index, user_rel
                 in enumerate(user_rels)
             }
@@ -677,19 +634,7 @@ class DDP(APIMixin):
     @api_endpoint
     def sub(self, id_, name, *params):
         """Create subscription, send matched objects that haven't been sent."""
-        try:
-            return self.do_sub(id_, name, False, *params)
-        except Exception as err:
-            this.send({
-                'msg': 'nosub',
-                'id': id_,
-                'error': {
-                    'error': 500,
-                    'errorType': 'Meteor.Error',
-                    'message': '%s' % err,
-                    'reason': 'Subscription failed',
-                },
-            })
+        return self.do_sub(id_, name, False, *params)
 
     @transaction.atomic
     def do_sub(self, id_, name, silent, *params):
@@ -698,16 +643,7 @@ class DDP(APIMixin):
             pub = self.get_pub_by_name(name)
         except KeyError:
             if not silent:
-                this.send({
-                    'msg': 'nosub',
-                    'id': id_,
-                    'error': {
-                        'error': 404,
-                        'errorType': 'Meteor.Error',
-                        'message': 'Subscription not found [404]',
-                        'reason': 'Subscription not found',
-                    },
-                })
+                raise MeteorError(404, 'Subscription not found')
             return
         sub, created = Subscription.objects.get_or_create(
             connection_id=this.ws.connection.pk,
@@ -788,41 +724,16 @@ class DDP(APIMixin):
         try:
             handler = self.api_path_map()[method]
         except KeyError:
-            print('Unknown method: %s %r' % (method, params))
-            this.send({
-                'msg': 'result',
-                'id': id_,
-                'error': {
-                    'error': 404,
-                    'errorType': 'Meteor.Error',
-                    'message': 'Unknown method: %s %r' % (method, params),
-                    'reason': 'Method not found',
-                },
-            })
-            return
-        params_repr = repr(params)
+            raise MeteorError(404, 'Method not found', method)
         try:
-            result = handler(*params)
-            msg = {'msg': 'result', 'id': id_}
-            if result is not None:
-                msg['result'] = result
-            this.send(msg)
-        except Exception as err:  # log err+stack trace -> pylint: disable=W0703
-            details = traceback.format_exc()
-            print(id_, method, params_repr)
-            print(details)
-            this.ws.logger.error(err, exc_info=True)
-            msg = {
-                'msg': 'result',
-                'id': id_,
-                'error': {
-                    'error': 500,
-                    'reason': str(err),
-                },
-            }
-            if settings.DEBUG:
-                msg['error']['details'] = details
-            this.send(msg)
+            inspect.getcallargs(handler, *params)
+        except TypeError as err:
+            raise MeteorError(400, '%s' % err)
+        result = handler(*params)
+        msg = {'msg': 'result', 'id': id_}
+        if result is not None:
+            msg['result'] = result
+        this.send(msg)
 
     def register(self, api_or_iterable):
         """Register an API endpoint."""

@@ -8,10 +8,10 @@ WHEEL := dist/$(subst -,_,${NAME})-${VERSION}-py2.py3-none-any.whl
 
 .INTERMEDIATE: dist.intermediate docs
 
-all: .travis.yml docs dist
+all: .travis.yml.ok docs dist
 
 test:
-	tox -vvv
+	tox --skip-missing-interpreters -vvv
 
 clean: clean-docs clean-dist clean-pyc
 
@@ -19,7 +19,7 @@ clean-docs:
 	$(MAKE) -C docs/ clean
 
 clean-dist:
-	rm -rf "${SDIST}" "${WHEEL}" dddp/test/build/ dddp/test/meteor_todos/.meteor/local/
+	rm -rf "${SDIST}" "${WHEEL}" tests/build/ tests/meteor_todos/.meteor/local/
 
 clean-pyc:
 	find . -type f -name \*.pyc -print0 | xargs -0 rm -f
@@ -33,11 +33,11 @@ dist: ${SDIST} ${WHEEL}
 
 ${SDIST}: dist.intermediate
 	@echo "Testing ${SDIST}..."
-	tox --notest --installpkg ${SDIST}
+	tox --skip-missing-interpreters --notest --installpkg ${SDIST}
 
 ${WHEEL}: dist.intermediate
 	@echo "Testing ${WHEEL}..."
-	tox --notest --installpkg ${WHEEL}
+	tox --skip-missing-interpreters --notest --installpkg ${WHEEL}
 
 dist.intermediate: $(shell find dddp -type f)
 	tox -e dist
@@ -50,5 +50,7 @@ upload-pypi: ${SDIST} ${WHEEL}
 upload-docs: docs/_build/
 	python setup.py upload_sphinx --upload-dir="$<html"
 
-.travis.yml: tox.ini .travis.yml.sh
-	sh .travis.yml.sh > "$@"
+.travis.yml.ok: .travis.yml
+	@travis --version > "$@" || { echo 'Install travis command line client?'; exit 1; }
+	sha1sum "$<" >> "$@"
+	travis lint --exit-code | tee -a "$@"

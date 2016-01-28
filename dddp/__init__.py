@@ -4,7 +4,7 @@ import sys
 from gevent.local import local
 from dddp import alea
 
-__version__ = '0.19.0'
+__version__ = '0.19.1'
 __url__ = 'https://github.com/django-ddp/django-ddp'
 
 default_app_config = 'dddp.apps.DjangoDDPConfig'
@@ -40,6 +40,45 @@ def greenify():
 
     from psycogreen.gevent import patch_psycopg
     patch_psycopg()
+
+
+class MeteorError(Exception):
+
+    """
+    MeteorError.
+
+    This exception can be thrown by DDP API endpoints (methods) and publication
+    methods.  MeteorError is not expected to be logged or shown by the server,
+    leaving all handling of the error condition for the client.
+
+    Args:
+        error (str): A string code uniquely identifying this kind of error.
+            This string should be used by clients to determine the appropriate
+            action to take, instead of attempting to parse the reason or detail
+            fields.
+        reason (Optional[str]): A short human-readable summary of the error.
+        detail (Optional[str]): Additional information about the error.
+            When returning errors to clients, Django DDP will default this to a
+            textual stack trace if `django.conf.settings.DEBUG` is `True`.
+    """
+
+    def __init__(self, error, reason=None, details=None, **kwargs):
+        """MeteorError constructor."""
+        super(MeteorError, self).__init__(error, reason, details, kwargs)
+
+    def as_dict(self, **kwargs):
+        """Return an error dict for self.args and kwargs."""
+        error, reason, details, err_kwargs = self.args
+        result = {
+            key: val
+            for key, val in {
+                'error': error, 'reason': reason, 'details': details,
+            }.items()
+            if val is not None
+        }
+        result.update(err_kwargs)
+        result.update(kwargs)
+        return result
 
 
 class AlreadyRegistered(Exception):
@@ -125,7 +164,7 @@ THREAD_LOCAL_FACTORIES = {
     'user_ddp_id': lambda: None,
     'user': lambda: None,
 }
-THREAD_LOCAL = ThreadLocal()
+THREAD_LOCAL = this = ThreadLocal()  # pylint: disable=invalid-name
 METEOR_ID_CHARS = u'23456789ABCDEFGHJKLMNPQRSTWXYZabcdefghijkmnopqrstuvwxyz'
 
 
