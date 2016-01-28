@@ -228,12 +228,12 @@ class DDPServerTestCase(django.test.TransactionTestCase):
         return self.server.url(path)
 
 
+# gevent-websocket doesn't work with Python 3 yet
+@expected_failure_if(sys.version_info.major == 3)
 class HttpTestCase(DDPServerTestCase):
 
     """Test that server launches and handles HTTP requests."""
 
-    # gevent-websocket doesn't work with Python 3 yet
-    @expected_failure_if(sys.version_info.major == 3)
     def test_get(self):
         """Perform HTTP GET."""
         import requests
@@ -241,12 +241,12 @@ class HttpTestCase(DDPServerTestCase):
         self.assertEqual(resp.status_code, 200)
 
 
+# gevent-websocket doesn't work with Python 3 yet
+@expected_failure_if(sys.version_info.major == 3)
 class WebSocketTestCase(DDPServerTestCase):
 
     """Test that server launches and handles WebSocket connections."""
 
-    # gevent-websocket doesn't work with Python 3 yet
-    @expected_failure_if(sys.version_info.major == 3)
     def test_sockjs_connect_ping(self):
         """SockJS connect."""
         sockjs = self.server.sockjs('/sockjs/1/a/websocket')
@@ -282,8 +282,6 @@ class WebSocketTestCase(DDPServerTestCase):
 
         sockjs.close()
 
-    # gevent-websocket doesn't work with Python 3 yet
-    @expected_failure_if(sys.version_info.major == 3)
     def test_sockjs_connect_sub_unsub(self):
         """SockJS connect."""
         sockjs = self.server.sockjs('/sockjs/1/a/websocket')
@@ -318,8 +316,6 @@ class WebSocketTestCase(DDPServerTestCase):
 
         sockjs.close()
 
-    # gevent-websocket doesn't work with Python 3 yet
-    @expected_failure_if(sys.version_info.major == 3)
     def test_call_missing_arguments(self):
         """Connect and login without any arguments."""
         sockjs = self.server.sockjs('/sockjs/1/a/websocket')
@@ -349,7 +345,7 @@ class WebSocketTestCase(DDPServerTestCase):
                 {
                     'msg': 'result',
                     'error': {
-                        'error': 500,
+                        'error': 400,
                         'reason':
                             'login() takes exactly 2 arguments (1 given)',
                     },
@@ -360,8 +356,6 @@ class WebSocketTestCase(DDPServerTestCase):
 
         sockjs.close()
 
-    # gevent-websocket doesn't work with Python 3 yet
-    @expected_failure_if(sys.version_info.major == 3)
     def test_call_extra_arguments(self):
         """Connect and login with extra arguments."""
         with self.server.sockjs('/sockjs/1/a/websocket') as sockjs:
@@ -394,7 +388,7 @@ class WebSocketTestCase(DDPServerTestCase):
                     {
                         'msg': 'result',
                         'error': {
-                            'error': 500,
+                            'error': 400,
                             'reason':
                                 'login() takes exactly 2 arguments (3 given)',
                         },
@@ -402,6 +396,7 @@ class WebSocketTestCase(DDPServerTestCase):
                     },
                 ],
             )
+
 
 
 def load_tests(loader, tests, pattern):
