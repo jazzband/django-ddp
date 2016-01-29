@@ -187,6 +187,8 @@ class CollectionMeta(APIMeta):
 
     """DDP Collection metaclass."""
 
+    model_name_map = {}
+
     def __new__(mcs, name, bases, attrs):
         """Create a new Collection class."""
         attrs.update(
@@ -197,6 +199,10 @@ class CollectionMeta(APIMeta):
             attrs.update(
                 name=model_name(model),
             )
+        if model and attrs.get('name'):
+            if model._meta.label_lower:
+                model = model._meta.label_lower
+                CollectionMeta.model_name_map.update({model: attrs.get('name')})
         return super(CollectionMeta, mcs).__new__(mcs, name, bases, attrs)
 
 
@@ -562,7 +568,11 @@ class DDP(APIMixin):
 
     def get_col_by_name(self, name):
         """Return collection instance for given name."""
-        return self._registry[COLLECTION_PATH_FORMAT.format(name=name)]
+        try:
+            return self._registry[COLLECTION_PATH_FORMAT.format(name=name)]
+        except:
+            name = Collection.model_name_map[str(name)]
+            return self._registry[COLLECTION_PATH_FORMAT.format(name=name)]
 
     def get_pub_by_name(self, name):
         """Return publication instance for given name."""
