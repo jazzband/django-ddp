@@ -239,11 +239,6 @@ setuptools.setup(
             'sphinxcontrib-dashbuilder>=0.1.0',
         ],
     },
-    entry_points={
-        'console_scripts': [
-            'dddp=dddp.main:main',
-        ],
-    },
     classifiers=CLASSIFIERS,
     test_suite='tests.manage.run_tests',
     tests_require=[
