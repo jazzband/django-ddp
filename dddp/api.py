@@ -494,6 +494,13 @@ class Collection(APIMixin):
             fields['%s_ids' % field.name] = get_meteor_ids(
                 field.rel.to, fields.pop(field.name),
             ).values()
+
+        # run serialization for all properties
+        for o in obj.__class__.mro():
+            for attr in o.__dict__:
+                if isinstance(o.__dict__[attr], property):
+                    val = o.__dict__[attr].__get__(obj)
+                    fields[attr] = val
         return data
 
     def obj_change_as_msg(self, obj, msg, meteor_ids=None):
