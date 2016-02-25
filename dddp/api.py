@@ -51,6 +51,22 @@ else:
     from django.contrib.postgres.aggregates import ArrayAgg
 
 
+def ddp_property(method):
+    """
+    Simple decorator that adds a "serialize_ddp" attribute to tell the
+    serializer to include it in the payload returning to the client
+
+    Args:
+        method: the decorated method
+
+    Returns:
+        Callable: Decorated method with new attribute
+    """
+    method.serialize_ddp = True
+
+    return method
+
+
 def api_endpoint(path_or_func=None, decorate=True):
     """
     Decorator to mark a method as an API endpoint for later registration.
@@ -451,6 +467,13 @@ class Collection(APIMixin):
             fields['%s_ids' % field.name] = get_meteor_ids(
                 field.rel.to, fields.pop(field.name),
             ).values()
+
+        # run serialization for all methods decoratored with ddp_property
+        for o in obj.__class__.mro():
+            for attr in o.__dict__:
+                if hasattr(o.__dict__[attr], 'serialize_ddp'):
+                    val = o.__dict__[attr].__call__(obj)
+                    fields[attr] = val
         return data
 
     def obj_change_as_msg(self, obj, msg, meteor_ids=None):
