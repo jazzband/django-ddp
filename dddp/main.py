@@ -112,7 +112,7 @@ class DDPLauncher(object):
             self.wsgi_name = settings.WSGI_APPLICATION
             try:
                 self.wsgi_app = import_string(self.wsgi_name)
-            except ImportError:
+            except (ImportError, AttributeError):
                 pass
         if self.wsgi_app is None:
             from django.core.wsgi import get_wsgi_application
