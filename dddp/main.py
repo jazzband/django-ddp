@@ -111,7 +111,6 @@ class DDPLauncher(object):
         if hasattr(settings, 'WSGI_APPLICATION'):
             self.wsgi_name = settings.WSGI_APPLICATION
             try:
-                print("-----------------------------------------------")
                 self.wsgi_app = import_string(self.wsgi_name)
             except (ImportError, AttributeError):
                 pass
