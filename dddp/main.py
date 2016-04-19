@@ -108,7 +108,7 @@ class DDPLauncher(object):
         # use settings.WSGI_APPLICATION or fallback to default Django WSGI app
         from django.conf import settings
         self.wsgi_app = None
-        if hasattr(settings, 'WSGI_APPLICATION'):
+        if hasattr(settings, 'WSGI_APPLICATION') and settings.WSGI_APPLICATION:
             self.wsgi_name = settings.WSGI_APPLICATION
             try:
                 self.wsgi_app = import_string(self.wsgi_name)
