@@ -178,7 +178,7 @@ CLASSIFIERS = [
 
 setuptools.setup(
     name='django-ddp',
-    version='0.19.0',
+    version='0.19.1',
     description=__doc__,
     long_description=open('README.rst').read(),
     author='Tyson Clugg',

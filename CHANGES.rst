@@ -4,7 +4,23 @@ Change Log
 All notable changes to this project will be documented in this file.  
 This project adheres to `Semantic Versioning <http://semver.org/>`_.
 
-0.19.1 (2015-12-16)
+0.19.1 (2016-01-28)
+-------------------
+* Consistent handling of client errors (`MeteorError`) which shouldn't 
+  be logged.
+* Reduce wheel size from 204KB to 68KB by removing dddp.test package.
+* Reduce sdist size from 10MB to 209KB by removing Meteor build from 
+  test suite.
+* Improve test suite with coverage now 65% when tested via Travis CI.
+* Dropped support for Python 3.3.
+* Fix for #3 -- drop support for Django 1.7, add support for Django 1.9 
+  - thanks @schinckel.
+* Re-raise exceptions from DDP WebSocket handlers rather than swallowing 
+  them.
+* Fix for #33 -- Add `meteor_autoupdate_clientVersions` publication.
+
+
+0.19.0 (2015-12-16)
 -------------------
 * Dropped support for Django 1.7 (support expired on December 1 2015, 
   see https://www.djangoproject.com/download/#supported-versions).
