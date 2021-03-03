@@ -23,9 +23,9 @@ docs/node_modules/
 .cache/
 .coverage
 .tox/
-htmlcov/
-tests/report/
+/htmlcov/
+/report/
 
 # meteor
-dddp/test/build/
-dddp/test/meteor_todos/.meteor/
+test/build/
+test/meteor_todos/.meteor/

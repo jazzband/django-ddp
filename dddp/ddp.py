@@ -1,7 +1,15 @@
-from dddp import THREAD_LOCAL as this
+from django.contrib import auth
+from dddp import THREAD_LOCAL
 from dddp.api import API, Publication
 from dddp.logging import LOGS_NAME
-from django.contrib import auth
+
+
+class ClientVersions(Publication):
+    """Publication for `meteor_autoupdate_clientVersions`."""
+
+    name = 'meteor_autoupdate_clientVersions'
+
+    queries = []
 
 
 class Logs(Publication):
@@ -10,7 +18,7 @@ class Logs(Publication):
     users = auth.get_user_model()
 
     def get_queries(self):
-        user_pk = getattr(this, 'user_id', False)
+        user_pk = getattr(THREAD_LOCAL, 'user_id', False)
         if user_pk:
             if self.users.objects.filter(
                 pk=user_pk,
@@ -21,4 +29,4 @@ class Logs(Publication):
         raise ValueError('User not permitted.')
 
 
-API.register([Logs])
+API.register([ClientVersions, Logs])

@@ -1,5 +1,5 @@
 """
-WSGI config for dddp.test.test_project project.
+WSGI config for test_project project.
 
 It exposes the WSGI callable as a module-level variable named ``application``.
 
@@ -8,7 +8,7 @@ https://docs.djangoproject.com/en/1.7/howto/deployment/wsgi/
 """
 
 import os
-os.environ["DJANGO_SETTINGS_MODULE"] = "dddp.test.test_project.settings"
+os.environ["DJANGO_SETTINGS_MODULE"] = "test_project.settings"
 
 from django.core.wsgi import get_wsgi_application
 application = get_wsgi_application()

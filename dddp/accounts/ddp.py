@@ -21,16 +21,16 @@ from django.dispatch import Signal
 from django.utils import timezone
 
 from dddp import (
-    THREAD_LOCAL_FACTORIES, THREAD_LOCAL as this, ADDED, REMOVED,
+    THREAD_LOCAL_FACTORIES, this, MeteorError,
+    ADDED, REMOVED,
     meteor_random_id,
 )
 from dddp.models import get_meteor_id, get_object, Subscription
 from dddp.api import API, APIMixin, api_endpoint, Collection, Publication
-from dddp.websocket import MeteorError
 
 
-# pylint dones't like lower case attribute names on modules, but it's the normal
-# thing to do for Django signal names.  --> pylint: disable=C0103
+# pylint doesn't like lower case attribute names on modules, but it's the
+# normal thing to do for Django signal names.  --> pylint: disable=C0103
 create_user = Signal(providing_args=['request', 'params'])
 password_changed = Signal(providing_args=['request', 'user'])
 forgot_password = Signal(providing_args=['request', 'user', 'token', 'expiry'])
@@ -49,7 +49,7 @@ HASH_MINUTES_VALID = {
     HashPurpose.PASSWORD_RESET: int(
         getattr(
             # keep possible attack window short to reduce chance of account
-            # takeover through later  discovery of password reset email message.
+            # takeover through later discovery of password reset email message.
             settings, 'DDP_PASSWORD_RESET_MINUTES_VALID', '1440',  # 24 hours
         )
     ),
@@ -67,8 +67,8 @@ def iter_auth_hashes(user, purpose, minutes_valid):
     """
     Generate auth tokens tied to user and specified purpose.
 
-    The hash expires at midnight on the minute of now + minutes_valid, such that
-    when minutes_valid=1 you get *at least* 1 minute to use the token.
+    The hash expires at midnight on the minute of now + minutes_valid, such
+    that when minutes_valid=1 you get *at least* 1 minute to use the token.
     """
     now = timezone.now().replace(microsecond=0, second=0)
     for minute in range(minutes_valid + 1):
@@ -190,7 +190,7 @@ class Users(Collection):
             if key == prefixed('name'):
                 result['full_name'] = val
             else:
-                raise ValueError('Bad profile key: %r' % key)
+                raise MeteorError(400, 'Bad profile key: %r' % key)
         return result
 
     @api_endpoint
@@ -278,7 +278,9 @@ class Auth(APIMixin):
             for col_post, query in post.items():
                 try:
                     qs_pre = pre[col_post]
-                    query = query.exclude(pk__in=qs_pre.order_by().values('pk'))
+                    query = query.exclude(
+                        pk__in=qs_pre.order_by().values('pk'),
+                    )
                 except KeyError:
                     # collection not included pre-auth, everything is added.
                     pass
@@ -377,25 +379,26 @@ class Auth(APIMixin):
             return password
         else:
             # Meteor is trying to be smart by doing client side hashing of the
-            # password so that passwords are "...not sent in plain text over the
-            # wire".  This behaviour doesn't make HTTP any more secure - it just
-            # gives a false sense of security as replay attacks and
+            # password so that passwords are "...not sent in plain text over
+            # the wire".  This behaviour doesn't make HTTP any more secure -
+            # it just gives a false sense of security as replay attacks and
             # code-injection are both still viable attack vectors for the
             # malicious MITM.  Also as no salt is used with hashing, the
             # passwords are vulnerable to rainbow-table lookups anyway.
             #
-            # If you're doing security, do it right from the very outset.  Fors
+            # If you're doing security, do it right from the very outset.  For
             # web services that means using SSL and not relying on half-baked
             # security concepts put together by people with no security
             # background.
             #
-            # We protest loudly to anyone who cares to listen in the server logs
-            # until upstream developers see the light and drop the password
-            # hashing mis-feature.
+            # We protest loudly to anyone who cares to listen in the server
+            # logs until upstream developers see the light and drop the
+            # password hashing mis-feature.
             raise MeteorError(
-                400,
-                "Outmoded password hashing, run "
-                "`meteor add tysonclugg:accounts-secure` to fix.",
+                426,
+                "Outmoded password hashing: "
+                "https://github.com/meteor/meteor/issues/4363",
+                upgrade='meteor add tysonclugg:accounts-secure',
             )
 
     @api_endpoint('createUser')
@@ -407,7 +410,9 @@ class Auth(APIMixin):
             params=params,
         )
         if len(receivers) == 0:
-            raise MeteorError(501, 'Handler for `create_user` not registered.')
+            raise NotImplementedError(
+                'Handler for `create_user` not registered.'
+            )
         user = receivers[0][1]
         user = auth.authenticate(
             username=user.get_username(), password=params['password'],
@@ -475,7 +480,7 @@ class Auth(APIMixin):
                     minutes_valid=HASH_MINUTES_VALID[HashPurpose.RESUME_LOGIN],
                 )
 
-        # Call to `authenticate` was unable to verify the username and password.
+        # Call to `authenticate` couldn't verify the username and password.
         # It will have sent the `user_login_failed` signal, no need to pass the
         # `username` argument to auth_failed().
         self.auth_failed()

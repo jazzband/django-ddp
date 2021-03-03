@@ -20,7 +20,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 SECRET_KEY = 'z@akz#7+cp9w!7%=%kqec79ltlzdn5p&__=(th8^&*t)vo4p35'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 TEMPLATE_DEBUG = True
 
@@ -38,7 +38,7 @@ INSTALLED_APPS = (
     'django.contrib.staticfiles',
     'dddp',
     'dddp.accounts',
-    'dddp.test.django_todos',
+    'django_todos',
 )
 
 MIDDLEWARE_CLASSES = (
@@ -51,9 +51,9 @@ MIDDLEWARE_CLASSES = (
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 )
 
-ROOT_URLCONF = 'dddp.test.test_project.urls'
+ROOT_URLCONF = 'test_project.urls'
 
-WSGI_APPLICATION = 'dddp.test.test_project.wsgi.application'
+WSGI_APPLICATION = 'test_project.wsgi.application'
 
 
 # Database
