@@ -9,6 +9,7 @@ import gevent
 from gevent.backdoor import BackdoorServer
 import gevent.event
 import gevent.pywsgi
+import gevent.signal
 import geventwebsocket
 import geventwebsocket.handler
 
@@ -297,7 +298,7 @@ def serve(listen, verbosity=1, debug_port=0, **ssl_args):
         )
         launcher.stop()
     for signum in [signal.SIGINT, signal.SIGQUIT]:
-        gevent.signal(signum, sighandler)
+        gevent.signal.signal(signum, sighandler)
     launcher.run()
 
 
