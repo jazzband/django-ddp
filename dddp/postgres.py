@@ -1,6 +1,6 @@
 """Django DDP PostgreSQL Greenlet."""
 
-from __future__ import absolute_import
+
 
 import ejson
 import gevent
@@ -39,7 +39,7 @@ class PostgresGreenlet(gevent.Greenlet):
         # http://www.postgresql.org/docs/current/static/libpq-connect.html
         # section 31.1.2 (Parameter Key Words) for details on available params.
         conn_params.update(
-            async=True,
+            async_=True,
             application_name='{} pid={} django-ddp'.format(
                 socket.gethostname(),  # hostname
                 os.getpid(),  # PID

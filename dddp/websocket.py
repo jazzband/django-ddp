@@ -153,8 +153,8 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
         # `_tx_buffer` collects outgoing messages which must be sent in order
         self._tx_buffer = {}
         # track the head of the queue (buffer) and the next msg to be sent
-        self._tx_buffer_id_gen = itertools.cycle(irange(sys.maxint))
-        self._tx_next_id_gen = itertools.cycle(irange(sys.maxint))
+        self._tx_buffer_id_gen = itertools.cycle(irange(sys.maxsize))
+        self._tx_next_id_gen = itertools.cycle(irange(sys.maxsize))
         # start by waiting for the very first message
         self._tx_next_id = next(self._tx_next_id_gen)
 
