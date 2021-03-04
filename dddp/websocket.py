@@ -1,6 +1,6 @@
 """Django DDP WebSocket service."""
 
-from __future__ import absolute_import, print_function
+
 
 import atexit
 import collections
@@ -332,7 +332,7 @@ class DDPWebSocketApplication(geventwebsocket.WebSocketApplication):
                 safe_call(self.logger.debug, 'TX found %d', self._tx_next_id)
             # advance next message ID
             self._tx_next_id = next(self._tx_next_id_gen)
-            if not isinstance(data, basestring):
+            if not isinstance(data, str):
                 # ejson payload
                 msg = data.get('msg', None)
                 if msg in (ADDED, CHANGED, REMOVED):

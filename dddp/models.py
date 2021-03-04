@@ -1,5 +1,5 @@
 """Django DDP models."""
-from __future__ import absolute_import
+
 
 import collections
 import os
@@ -109,7 +109,7 @@ def get_meteor_ids(model, object_ids):
         ).values_list('object_id', 'meteor_id')
     for obj_pk, meteor_id in query:
         result[str(obj_pk)] = meteor_id
-    for obj_pk, meteor_id in result.items():
+    for obj_pk, meteor_id in list(result.items()):
         if meteor_id is None:
             result[obj_pk] = get_meteor_id(model, obj_pk)
     return result
@@ -309,7 +309,7 @@ class Connection(models.Model, object):
 
     def __str__(self):
         """Text representation of subscription."""
-        return u'%s/\u200b%s' % (
+        return '%s/\u200b%s' % (
             self.connection_id,
             self.remote_addr,
         )
@@ -337,7 +337,7 @@ class Subscription(models.Model, object):
 
     def __str__(self):
         """Text representation of subscription."""
-        return u'%s/\u200b%s/\u200b%s: %s%s' % (
+        return '%s/\u200b%s/\u200b%s: %s%s' % (
             self.user,
             self.connection_id,
             self.sub_id,
@@ -367,7 +367,7 @@ class SubscriptionCollection(models.Model):
 
     def __str__(self):
         """Human readable representation of colleciton for a subscription."""
-        return u'%s \u200b %s (%s)' % (
+        return '%s \u200b %s (%s)' % (
             self.subscription,
             self.collection_name,
             self.model_name,

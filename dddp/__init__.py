@@ -1,5 +1,5 @@
 """Django/PostgreSQL implementation of the Meteor server."""
-from __future__ import unicode_literals
+
 import sys
 from gevent.local import local
 from dddp import alea
@@ -71,9 +71,9 @@ class MeteorError(Exception):
         error, reason, details, err_kwargs = self.args
         result = {
             key: val
-            for key, val in {
+            for key, val in list({
                 'error': error, 'reason': reason, 'details': details,
-            }.items()
+            }.items())
             if val is not None
         }
         result.update(err_kwargs)
@@ -165,7 +165,7 @@ THREAD_LOCAL_FACTORIES = {
     'user': lambda: None,
 }
 THREAD_LOCAL = this = ThreadLocal()  # pylint: disable=invalid-name
-METEOR_ID_CHARS = u'23456789ABCDEFGHJKLMNPQRSTWXYZabcdefghijkmnopqrstuvwxyz'
+METEOR_ID_CHARS = '23456789ABCDEFGHJKLMNPQRSTWXYZabcdefghijkmnopqrstuvwxyz'
 
 
 def meteor_random_id(name=None, length=17):

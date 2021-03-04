@@ -1,5 +1,5 @@
 """Django DDP Accounts test suite."""
-from __future__ import unicode_literals
+
 
 import sys
 from dddp import tests
