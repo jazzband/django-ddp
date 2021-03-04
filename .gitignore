@@ -29,3 +29,4 @@ docs/node_modules/
 # meteor
 test/build/
 test/meteor_todos/.meteor/
+/.idea
