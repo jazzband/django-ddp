@@ -271,7 +271,7 @@ class MeteorView(View):
             )
         try:
             file_path, content_type = self.url_map[path]
-            with open(file_path, 'r') as content:
+            with open(file_path, 'rb') as content:
                 return HttpResponse(
                     content.read(),
                     content_type=content_type,
