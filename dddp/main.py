@@ -1,7 +1,5 @@
 """Django DDP WebSocket service."""
 
-from __future__ import absolute_import, print_function
-
 import argparse
 import collections
 import os
@@ -11,6 +9,7 @@ import gevent
 from gevent.backdoor import BackdoorServer
 import gevent.event
 import gevent.pywsgi
+import gevent.signal
 import geventwebsocket
 import geventwebsocket.handler
 
@@ -157,7 +156,7 @@ class DDPLauncher(object):
             listen_addr,
             self.resource,
             debug=debug,
-            **{key: val for key, val in ssl_args.items() if val is not None}
+            **{key: val for key, val in list(ssl_args.items()) if val is not None}
         )
 
     def get_backdoor_server(self, listen_addr, **context):
@@ -286,7 +285,7 @@ def serve(listen, verbosity=1, debug_port=0, **ssl_args):
     sigmap = {
         val: name
         for name, val
-        in vars(signal).items()
+        in list(vars(signal).items())
         if name.startswith('SIG')
     }
 
@@ -299,7 +298,7 @@ def serve(listen, verbosity=1, debug_port=0, **ssl_args):
         )
         launcher.stop()
     for signum in [signal.SIGINT, signal.SIGQUIT]:
-        gevent.signal(signum, sighandler)
+        gevent.signal.signal(signum, sighandler)
     launcher.run()
 
 

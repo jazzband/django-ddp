@@ -1,5 +1,5 @@
 """Django DDP Server views."""
-from __future__ import absolute_import, unicode_literals
+
 
 from copy import deepcopy
 import io
@@ -26,7 +26,7 @@ def dict_merge(lft, rgt):
     if not isinstance(rgt, dict):
         return rgt
     result = deepcopy(lft)
-    for key, val in rgt.iteritems():
+    for key, val in rgt.items():
         if key in result and isinstance(result[key], dict):
             result[key] = dict_merge(result[key], val)
         else:
@@ -233,11 +233,11 @@ class MeteorView(View):
             'inline': None,
             'head': read(
                 self.internal_map.get('head', {}).get('path_full', None),
-                default=u'',
+                default='',
             ),
             'body': read(
                 self.internal_map.get('body', {}).get('path_full', None),
-                default=u'',
+                default='',
             ),
         }
         tmpl_raw = read(self.template_path, encoding='utf8')
@@ -271,7 +271,7 @@ class MeteorView(View):
             )
         try:
             file_path, content_type = self.url_map[path]
-            with open(file_path, 'r') as content:
+            with open(file_path, 'rb') as content:
                 return HttpResponse(
                     content.read(),
                     content_type=content_type,

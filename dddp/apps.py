@@ -19,7 +19,7 @@ class DjangoDDPConfig(AppConfig):
         """Initialisation for django-ddp (setup lookups and signal handlers)."""
         if not settings.DATABASES:
             raise ImproperlyConfigured('No databases configured.')
-        for (alias, conf) in settings.DATABASES.items():
+        for (alias, conf) in list(settings.DATABASES.items()):
             engine = conf['ENGINE']
             if engine not in [
                 'django.db.backends.postgresql',

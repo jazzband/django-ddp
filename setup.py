@@ -14,12 +14,10 @@ import setuptools.command.build_ext
 # pypi
 import setuptools
 
-# setuptools 18.5 introduces support for the `platform_python_implementation`
-# environment marker: https://github.com/jaraco/setuptools/pull/28
-__requires__ = 'setuptools>=18.5'
+__requires__ = 'setuptools>=54.0.0'
 
-assert StrictVersion(setuptools.__version__) >= StrictVersion('18.5'), \
-    'Installation from source requires setuptools>=18.5.'
+assert StrictVersion(setuptools.__version__) >= StrictVersion('54.0.0'), \
+    'Installation from source requires setuptools>=54.0.0'
 
 SETUP_DIR = os.path.dirname(__file__)
 
@@ -178,7 +176,7 @@ CLASSIFIERS = [
 
 setuptools.setup(
     name='django-ddp',
-    version='0.19.1',
+    version='0.20.0',
     description=__doc__,
     long_description=open('README.rst').read(),
     author='Tyson Clugg',
@@ -197,46 +195,23 @@ setuptools.setup(
         __requires__,
     ],
     install_requires=[
-        'Django>=1.8',
-        'meteor-ejson>=1.0',
-        'psycogreen>=1.0',
-        'pybars3>=0.9.1',
-        'six>=1.10.0',
+        'Django==1.11.29',
+        'meteor-ejson==1.1.0',
+        'psycogreen==1.0.2',
+        'pybars3==0.9.7',
+        'six==1.15.0',
+        'gevent==21.1.2',
+        'psycopg2==2.8.6',
+        'gevent-websocket @ git+https://github.com/MEERQAT/gevent-websocket.git@v0.11.0#egg=gevent-websocket',
     ],
     extras_require={
-        # We need gevent version dependent upon environment markers, but the
-        # extras_require seem to be a separate phase from setup/install of
-        # install_requires.  So we specify gevent-websocket (which depends on
-        # gevent) here in order to honour environment markers.
-        '': [
-            'gevent-websocket>=0.9,!=0.9.4',
-        ],
-        # Django 1.9 doesn't support Python 3.3
-        ':python_version=="3.3"': [
-            'Django<1.9',
-        ],
-        # CPython < 3.0 can use gevent 1.0
-        ':platform_python_implementation=="CPython" and python_version<"3.0"': [
-            'gevent>=1.0',
-        ],
-        # everything else needs gevent 1.1
-        ':platform_python_implementation!="CPython" or python_version>="3.0"': [
-            'gevent>=1.1rc2',
-        ],
-        # CPython can use plain old psycopg2
-        ':platform_python_implementation=="CPython"': [
-            'psycopg2>=2.5.4',
-        ],
-        # everything else must use psycopg2cffi
-        ':platform_python_implementation != "CPython"': [
-            'psycopg2cffi>=2.7.2',
-        ],
         'develop': [
             # things you need to distribute a wheel from source (`make dist`)
-            'Sphinx>=1.3.3',
-            'Sphinx-PyPI-upload>=0.2.1',
-            'twine>=1.6.4',
-            'sphinxcontrib-dashbuilder>=0.1.0',
+            'Sphinx==1.3.3',
+            'Sphinx-PyPI-upload==0.2.1',
+            'twine==1.6.4',
+            'sphinxcontrib-dashbuilder==0.1.0',
+            'rst2pdf==0.98',
         ],
     },
     entry_points={

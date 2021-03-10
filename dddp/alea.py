@@ -49,7 +49,7 @@ True
 True
 
 """
-from __future__ import unicode_literals
+
 
 from math import floor
 import os

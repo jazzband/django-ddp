@@ -9,6 +9,7 @@ from binascii import Error
 import collections
 import datetime
 import hashlib
+import base64
 
 from ejson import loads, dumps
 
@@ -72,20 +73,19 @@ def iter_auth_hashes(user, purpose, minutes_valid):
     """
     now = timezone.now().replace(microsecond=0, second=0)
     for minute in range(minutes_valid + 1):
-        yield hashlib.sha1(
-            '%s:%s:%s:%s:%s' % (
-                now - datetime.timedelta(minutes=minute),
-                user.password,
-                purpose,
-                user.pk,
-                settings.SECRET_KEY,
-            ),
-        ).hexdigest()
+        _content = '%s:%s:%s:%s:%s' % (
+            now - datetime.timedelta(minutes=minute),
+            user.password,
+            purpose,
+            user.pk,
+            settings.SECRET_KEY,
+        )
+        yield hashlib.sha1(_content.encode()).hexdigest()
 
 
 def get_auth_hash(user, purpose):
     """Generate a user hash for a particular purpose."""
-    return iter_auth_hashes(user, purpose, minutes_valid=1).next()
+    return next(iter_auth_hashes(user, purpose, minutes_valid=1))
 
 
 def calc_expiry_time(minutes_valid):
@@ -97,15 +97,19 @@ def calc_expiry_time(minutes_valid):
 
 def get_user_token(user, purpose, minutes_valid):
     """Return login token info for given user."""
-    token = ''.join(
-        dumps([
-            user.get_username(),
-            get_auth_hash(user, purpose),
-        ]).encode('base64').split('\n')
+    token_json = dumps([
+        user.get_username(),
+        get_auth_hash(user, purpose),
+    ])
+    token_json_enc = token_json.encode()
+    token_json_enc_b64_multiline = base64.b64encode(token_json_enc)
+    token_json_enc_b64_singleline = "".join(
+        token_json_enc_b64_multiline.decode().split("\n")
     )
+
     return {
         'id': get_meteor_id(user),
-        'token': token,
+        'token': token_json_enc_b64_singleline,
         'tokenExpires': calc_expiry_time(minutes_valid),
     }
 
@@ -185,7 +189,7 @@ class Users(Collection):
             """Return name prefixed by `key_prefix`."""
             return '%s%s' % (key_prefix, name)
 
-        for key in profile.keys():
+        for key in list(profile.keys()):
             val = getter(key)
             if key == prefixed('name'):
                 result['full_name'] = val
@@ -208,7 +212,7 @@ class Users(Collection):
         if len(update['$set']) != 0:
             raise MeteorError(400, 'Invalid update fields: %r')
 
-        for key, val in profile_update.items():
+        for key, val in list(profile_update.items()):
             setattr(user, key, val)
         user.save()
 
@@ -275,7 +279,7 @@ class Auth(APIMixin):
             ])
 
             # first pass, send `added` for objs unique to `post`
-            for col_post, query in post.items():
+            for col_post, query in list(post.items()):
                 try:
                     qs_pre = pre[col_post]
                     query = query.exclude(
@@ -288,7 +292,7 @@ class Auth(APIMixin):
                     this.ws.send(col_post.obj_change_as_msg(obj, ADDED))
 
             # second pass, send `removed` for objs unique to `pre`
-            for col_pre, query in pre.items():
+            for col_pre, query in list(pre.items()):
                 try:
                     qs_post = post[col_pre]
                     query = query.exclude(
@@ -314,7 +318,7 @@ class Auth(APIMixin):
     def validated_user(cls, token, purpose, minutes_valid):
         """Resolve and validate auth token, returns user object."""
         try:
-            username, auth_hash = loads(token.decode('base64'))
+            username, auth_hash = loads(base64.b64decode(token))
         except (ValueError, Error):
             cls.auth_failed(token=token)
         try:
@@ -343,10 +347,10 @@ class Auth(APIMixin):
 
     def get_username(self, user):
         """Retrieve username from user selector."""
-        if isinstance(user, basestring):
+        if isinstance(user, str):
             return user
         elif isinstance(user, dict) and len(user) == 1:
-            [(key, val)] = user.items()
+            [(key, val)] = list(user.items())
             if key == 'username' or (key == self.user_model.USERNAME_FIELD):
                 # username provided directly
                 return val
@@ -373,7 +377,7 @@ class Auth(APIMixin):
     @staticmethod
     def get_password(password):
         """Return password in plain-text from string/dict."""
-        if isinstance(password, basestring):
+        if isinstance(password, str):
             # regular Django authentication - plaintext password... but you're
             # using HTTPS (SSL) anyway so it's protected anyway, right?
             return password

@@ -1,7 +1,8 @@
-Django>=1.7
-gevent==1.0.2 ; platform_python_implementation == "CPython" and python_version < "3.0"
-gevent==1.1rc2 ; platform_python_implementation != "CPython" or python_version >= "3.0"
-gevent-websocket==0.9.5
-psycopg2==2.6.1 ; platform_python_implementation == "CPython"
-psycopg2cffi>=2.7.2 ; platform_python_implementation != "CPython"
-six==1.10.0
+Django==1.11.29
+meteor-ejson==1.1.0
+psycogreen==1.0.2
+pybars3==0.9.7
+six==1.15.0
+gevent==21.1.2
+psycopg2==2.8.6
+git+https://github.com/MEERQAT/gevent-websocket.git@v0.11.0#egg=gevent-websocket
