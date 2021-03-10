@@ -1,5 +1,5 @@
 """Django DDP API, Collections, Cursors and Publications."""
-from __future__ import absolute_import, unicode_literals, print_function
+
 
 # standard library
 import collections
@@ -241,7 +241,7 @@ class Collection(APIMixin):
         if user_rels:
             if user is None:
                 return qs.none()  # no user but we need one: return no objects.
-            if isinstance(user_rels, basestring):
+            if isinstance(user_rels, str):
                 user_rels = [user_rels]
             user_filter = None
             # Django supports model._meta -> pylint: disable=W0212
@@ -283,7 +283,7 @@ class Collection(APIMixin):
             if obj.pk is None:
                 return user_ids  # nobody can see objects that don't exist
             user_rels = self.user_rel
-            if isinstance(user_rels, basestring):
+            if isinstance(user_rels, str):
                 user_rels = [user_rels]
             user_rel_map = {
                 '_user_rel_%d' % index: ArrayAgg(user_rel)
@@ -303,7 +303,7 @@ class Collection(APIMixin):
             ).annotate(
                 **user_rel_map
             ).values_list(
-                *user_rel_map.keys()
+                *list(user_rel_map.keys())
             ).get():
                 user_ids.update(rel_user_ids)
             user_ids.difference_update([None])
@@ -411,15 +411,15 @@ class Collection(APIMixin):
         """Generate a DDP msg for obj with specified msg type."""
         # check for F expressions
         exps = [
-            name for name, val in vars(obj).items()
+            name for name, val in list(vars(obj).items())
             if isinstance(val, ExpressionNode)
         ]
         if exps:
             # clone/update obj with values but only for the expression fields
             obj = deepcopy(obj)
-            for name, val in self.model.objects.values(*exps).get(
+            for name, val in list(self.model.objects.values(*exps).get(
                     pk=obj.pk,
-            ).items():
+            ).items()):
                 setattr(obj, name, val)
 
         # run serialization now all fields are "concrete" (not F expressions)
@@ -448,9 +448,9 @@ class Collection(APIMixin):
                 # This will be sent as the `id`, don't send it in `fields`.
                 fields.pop(field.name)
         for field in meta.local_many_to_many:
-            fields['%s_ids' % field.name] = get_meteor_ids(
+            fields['%s_ids' % field.name] = list(get_meteor_ids(
                 field.rel.to, fields.pop(field.name),
-            ).values()
+            ).values())
         return data
 
     def obj_change_as_msg(self, obj, msg, meteor_ids=None):
@@ -572,7 +572,7 @@ class DDP(APIMixin):
     @property
     def api_providers(self):
         """Return an iterable of API providers."""
-        return self._registry.values()
+        return list(self._registry.values())
 
     def qs_and_collection(self, qs):
         """Return (qs, collection) from qs (which may be a tuple)."""
@@ -608,7 +608,7 @@ class DDP(APIMixin):
                 ),
             )
             for col, qs
-            in queries.items()
+            in list(queries.items())
         )
         for other in Subscription.objects.filter(
                 connection=obj.connection_id,
@@ -628,7 +628,7 @@ class DDP(APIMixin):
                         *args, **kwargs
                     ).values('pk'),
                 )
-        for col, qs in to_send.items():
+        for col, qs in list(to_send.items()):
             yield col, qs.distinct()
 
     @api_endpoint

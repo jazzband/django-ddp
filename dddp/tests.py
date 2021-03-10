@@ -1,5 +1,5 @@
 """Django DDP test suite."""
-from __future__ import absolute_import, unicode_literals
+
 
 import doctest
 import errno
@@ -136,7 +136,7 @@ class DDPTestServer(object):
     """DDP server with auto start and stop."""
 
     server_addr = '127.0.0.1'
-    server_port_range = range(8000, 8080)
+    server_port_range = list(range(8000, 8080))
     ssl_certfile_path = None
     ssl_keyfile_path = None
 
@@ -404,7 +404,7 @@ def load_tests(loader, tests, pattern):
     del pattern
     suite = unittest.TestSuite()
     # add all TestCase classes from this (current) module
-    for attr in globals().values():
+    for attr in list(globals().values()):
         if attr is DDPServerTestCase:
             continue  # not meant to be executed, is has no tests.
         try:
