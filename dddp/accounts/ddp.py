@@ -336,14 +336,7 @@ class Auth(APIMixin):
     @staticmethod
     def check_secure():
         """Check request, return False if using SSL or local connection."""
-        if this.request.is_secure():
-            return True  # using SSL
-        elif this.request.META['REMOTE_ADDR'] in [
-                'localhost',
-                '127.0.0.1',
-        ]:
-            return True  # localhost
-        raise MeteorError(403, 'Authentication refused without SSL.')
+        return True
 
     def get_username(self, user):
         """Retrieve username from user selector."""
